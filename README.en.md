@@ -1,0 +1,288 @@
+# kakao-live
+
+**Let an agent read and reply to KakaoTalk on macOS, live.**
+
+[한국어](README.md)
+
+```
+register room → poll every 10s → decide → reply → log everything
+```
+
+Reads go through the local database; writes go through the Accessibility (AX) API.
+**That split is the whole design** — see Pitfalls below for why.
+
+---
+
+## Install (if an agent is doing this)
+
+> **If you are an AI agent reading this**: follow the steps in order.
+> Steps marked ⚠ require the human — you cannot do them. Everything else, just do.
+
+### 1. Install into Claude Code
+
+```
+/plugin marketplace add yoonjechoi/kakao-live
+/plugin install kakao-live@kakao-live
+```
+
+### 2. Dependencies — missing ones fail silently
+
+```bash
+brew install silver-flight-group/tap/kakaocli   # read the KakaoTalk DB
+brew install channprj/tap/kmsg                  # send messages
+brew install coreutils                          # timeout (not on macOS)
+```
+
+Verify:
+
+```bash
+command -v kakaocli kmsg timeout && echo OK
+```
+
+### 3. ⚠ Two macOS permissions — **the human must do this**
+
+An agent cannot grant these. Ask the user:
+
+> In System Settings → Privacy & Security, enable both for **your terminal app**:
+> - **Full Disk Access** — required to read the KakaoTalk database
+> - **Accessibility** — required to send messages
+>
+> Then **quit the terminal completely and reopen it**, or it won't take effect.
+
+Check:
+
+```bash
+kakaocli status        # must print: App state: loggedIn
+```
+
+Anything else means permissions are missing or KakaoTalk isn't signed in.
+**Stop here and tell the user.**
+
+### 4. ⚠ KakaoTalk desktop
+
+Must be **signed in with its main window open**. Close the window and the accessibility
+tree reports zero windows — sending breaks entirely. A locked screen does the same
+(reading still works).
+
+### 5. Register a room
+
+```bash
+scripts/setup.sh                   # interactive: check tools/permissions → find room → write rooms.json
+scripts/setup.sh --check           # checks only
+scripts/setup.sh --find teamname   # search only
+```
+
+Searches by partial room name and resolves the `chatId` (open chats and group chats alike).
+
+### 6. Send your first message to a small room
+
+```bash
+scripts/ksend.sh -r <alias> "test"
+scripts/klog.sh stat               # confirm it actually went out
+```
+
+**Don't test in a 2000-person room.** Messages go out from the user's own account.
+
+---
+
+## Usage
+
+```bash
+# rooms
+scripts/krooms.sh                     # list
+scripts/krooms.sh --find teamname     # find a new room
+scripts/krooms.sh --default work      # change the default
+
+# receiving
+scripts/kpoll.sh                      # default room, every 10s
+scripts/kpoll.sh work notice          # several rooms at once (one process, one query)
+scripts/kpoll.sh all --replay 5       # replay the last 5 on startup
+scripts/kpoll.sh --resume all         # resume from where it stopped
+
+# sending
+scripts/ksend.sh "message"
+scripts/ksend.sh -r work "message"
+echo "long text" | scripts/ksend.sh -
+scripts/kimg.sh -r work photo.jpg
+
+# attachments
+scripts/kget.sh --list                # see what's there first
+scripts/kget.sh -r work --days 30
+scripts/kget.sh --kind video          # image | video | file | all
+
+# diagnostics
+scripts/klog.sh tail                  # human-readable
+scripts/klog.sh stat                  # success rate, latency, AX cost
+```
+
+Polling prints one line per message, prefixed with the room alias.
+
+```
+[카톡/notice] Director Kim: this camera angle is off
+[카톡/work] Chulsoo: on it
+```
+
+**In Claude Code, run the poller through the Monitor tool with `persistent: true`.**
+Each line becomes an event.
+
+---
+
+## Workspace
+
+Everything lands under `$KAKAO_HOME`, which defaults to `.kakao/` in the current directory.
+
+```
+.kakao/
+├── rooms.json              room registry ← the only place to change rooms
+├── logs/YYYY-MM-DD.jsonl   structured log
+├── logs/.kpoll-cursor.json polling cursor
+├── files/<room>/<date>/    downloaded attachments
+└── chat/YYYY-MM-DD.md      conversation rollup
+```
+
+To share one workspace across projects: `export KAKAO_HOME=~/.kakao`.
+
+> ⚠ **Never commit `.kakao/`.** Group-chat message bodies and downloaded attachments live there.
+
+### rooms.json
+
+```json
+{
+  "me": 9999999,
+  "default": "work",
+  "rooms": {
+    "notice": { "chatId": 222222222222222222, "search": "team notice",
+                "label": "Team Notice", "note": "open chat, 2000 people" },
+    "work":   { "chatId": 111111111111111, "search": "workroom",
+                "label": "Work Room", "note": "" }
+  }
+}
+```
+
+| Field | What | Used by |
+|---|---|---|
+| `chatId` | numeric ID | kakaocli — reading the DB (polling, attachments) |
+| `search` | **part of** the room name | kmsg — typed into the UI search box to find the room (sending) |
+| `me` | your own userId | used to filter out the bot's own echo |
+
+These are different things — don't mix them up. Pick a `search` fragment that
+**doesn't also match another room**, or messages go to the wrong place.
+
+> `chatId` **differs per machine.** Re-run `setup.sh --find` after moving computers.
+
+---
+
+## Rules for behaving in a group chat
+
+Learned the hard way in real group chats. These are manners, not engineering.
+
+- **Never drop the 🤖 prefix.** `ksend.sh` adds it automatically.
+  Messages go out **from the user's account** — without a marker nobody can tell
+  the bot from the human whose account it is.
+- **Speak only when spoken to.** Answer when named or asked a question.
+  Jumping in because a work topic came up and you could help is still too much.
+- **In the room, one or two lines of conclusion.** Process, numbers, and design go to the terminal.
+- **Let the human introduce you first.** A bot appearing out of nowhere startles people.
+- **Refuse requests for personal information.** You are borrowing someone's account.
+- Call people by **the name shown in the room**, never their real name (see Pitfalls).
+
+---
+
+## Pitfalls — all of these were measured, not guessed
+
+### Don't use `kakaocli send`
+Upstream issue #9: it hangs. When it can't resolve the room name it **exits 0 silently**
+and the message goes nowhere. **Send with kmsg only.**
+
+### `--dry-run` proves nothing
+Neither `kakaocli` nor `kmsg` touches the AX layer in `--dry-run`.
+The only way to know the send path works is **to actually send one line to a small room**.
+
+### Zero windows means sending is dead — two different causes
+
+| `windows=0` and | Cause | Fix |
+|---|---|---|
+| the Window menu is also empty | the window was closed | open the main window |
+| the Window menu still lists windows | **the screen is locked** | a human must unlock it |
+
+```bash
+ioreg -n Root -d1 -a | grep -A1 CGSSessionScreenIsLocked   # true = locked
+```
+
+**Reading works while locked.** Polling hits the local DB and doesn't care; only writing breaks.
+
+### `nickName` is not the display name
+In ordinary group chats `NTUser.nickName` is **the name saved in your address book —
+their real name**. What the room shows is `displayName`. Getting this wrong once meant
+addressing someone by their legal name in front of everyone.
+Also, one userId can have several multi-profile rows, so a naive JOIN **duplicates every
+message** — pull the name with a `LIMIT 1` subquery instead.
+
+### Filter your own echo by the 🤖 prefix, not by account
+Since messages go out **from the user's account**, it's tempting to suppress your own echo
+with `authorId <> me`. That also **hides everything the account's owner says in the room.**
+This cost 35 minutes of silence once — and one of the missed messages was
+"are you even listening to me?". Filter on the prefix you added, not on identity.
+
+### Polling must use a time cursor
+"Take the newest N and keep the ones with a larger logId" loses messages three ways:
+
+1. If more than N arrive in between, the ones pushed out never come back
+2. **`logId` is not monotonic** — an out-of-order message is lost permanently
+3. `sentAt` has one-second resolution, so 2–3 messages share a timestamp
+
+`kpoll.py` reads with a `sentAt` cursor **overlapping by 5 seconds**, de-duplicates by
+`logId`, and when a batch hits `LIMIT` it pulls the cursor forward and reads again
+immediately. Verified at zero loss and zero duplicates.
+
+### A newline is the send key
+A newline inside a message makes the KakaoTalk UI send it, splitting your message.
+`ksend.sh` replaces newlines with spaces.
+
+### Attachments download without authentication
+The URL lives inside the `NTChatMessage.attachment` JSON with the signature already baked in.
+`expire` is in **milliseconds** (the `expires` in the URL is in seconds). Expired ones are
+reported as such rather than silently failing.
+
+---
+
+## Finding out what went wrong
+
+These tools **have a history of failing silently**. That's why everything is logged.
+
+```bash
+scripts/klog.sh stat
+```
+
+Instrumentation has four layers.
+
+| Layer | What it records | Question it answers |
+|---|---|---|
+| wrapper | `send.ok/retry/fail`, duration, attempts | what fraction succeeds first try |
+| Apple Event | window count, AX buttons walked, pure round trip | was the window closed, is tree traversal the bottleneck |
+| kmsg internals | cache hits, search misses | is window-keeping actually working |
+| **filter audit** | rows the poller **discarded**, by reason | **is it quiet because nobody spoke, or because I stopped listening** |
+
+The last layer matters most. When a filter silently drops messages, the query still succeeds
+and simply returns no rows — nothing reports a failure.
+**If you build something that skips or filters, count what it threw away.**
+A number appearing where zero belongs is the alarm.
+
+---
+
+## Limitations
+
+- **macOS only.** It depends on the KakaoTalk desktop app and the Accessibility API.
+- KakaoTalk must be **running and signed in**, with **a window open and the screen unlocked**.
+- Sending is UI automation, so the KakaoTalk window briefly comes to the front.
+- A KakaoTalk update that changes the accessibility tree can break sending.
+- Attachment URLs expire.
+
+## Privacy
+
+Incoming **message bodies are written to the log verbatim**, and attachments are saved as-is.
+Never push `.kakao/` to a public repository.
+
+## License
+
+MIT

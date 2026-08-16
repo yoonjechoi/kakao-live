@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "kakao-live",
+  "owner": {
+    "name": "Yoonje Choi",
+    "email": "yoonjechoi@reconnect.red"
+  },
+  "metadata": {
+    "description": "macOS 카카오톡을 에이전트가 실시간으로 읽고 답하게 하는 도구 모음",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "kakao-live",
+      "source": "./",
+      "description": "macOS 카카오톡 실시간 연동 — 10초 폴링으로 새 메시지를 이벤트로 받고, 답장·이미지·첨부 다운로드까지. 읽기는 로컬 DB, 쓰기는 접근성 API. 모든 동작을 구조화 로그로 남겨 조용한 실패를 잡는다.",
+      "version": "1.0.0",
+      "category": "productivity",
+      "keywords": ["kakaotalk", "kakao", "macos", "chat", "automation", "korean", "realtime"]
+    }
+  ]
+}
