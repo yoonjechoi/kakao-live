@@ -2,8 +2,8 @@
 # 카톡 동영상·파일 전송 — 방은 rooms.json, 기록은 logs/.
 #
 #   kvid.sh 영상.mp4                    기본 방
-#   kvid.sh -r bang 영상.mp4             별칭으로 방 지정
-#   kvid.sh -r bang 영상.mp4 "설명 한 줄"  캡션을 먼저 보내고 영상을 올린다
+#   kvid.sh -r work 영상.mp4             별칭으로 방 지정
+#   kvid.sh -r work 영상.mp4 "설명 한 줄"  캡션을 먼저 보내고 영상을 올린다
 #
 # 왜 kmsg 를 못 쓰나 (2026-08-16 실측):
 #   kmsg 에는 send-image 뿐이고 동영상 서브커맨드가 없다. mp4 를 send-image 에 주면

@@ -2,8 +2,8 @@
 """카톡 방의 첨부(사진·동영상·파일)를 원본 그대로 내려받는다.
 
   tools/kget.sh                       기본 방, 최근 7일
-  tools/kget.sh -r bang --days 30
-  tools/kget.sh -r ham --limit 20 --kind image
+  tools/kget.sh -r work --days 30
+  tools/kget.sh -r notice --limit 20 --kind image
   tools/kget.sh --list                받지 않고 목록만 (무엇이 있는지 먼저 본다)
 
 저장 위치:  $KAKAO_HOME/files/<방별칭>/<YYYY-MM-DD>/HHMMSS_<보낸사람>_<파일명>

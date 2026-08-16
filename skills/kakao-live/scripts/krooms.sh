@@ -1,7 +1,7 @@
 #!/bin/bash
 # 방 목록 보기 / 기본 방 바꾸기 / 새 방 찾기
 #   krooms.sh                    등록된 방 목록
-#   krooms.sh --default bang     기본 방 변경
+#   krooms.sh --default work     기본 방 변경
 #   krooms.sh --find 우리팀       카톡 DB에서 방 검색 (오픈채팅 + 일반 그룹방 둘 다)
 #   krooms.sh --path             rooms.json 위치
 set -uo pipefail

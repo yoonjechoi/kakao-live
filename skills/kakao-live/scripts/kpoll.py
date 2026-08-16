@@ -2,14 +2,14 @@
 """여러 카톡 방을 한 프로세스로 동시에 폴링한다 (Monitor 이벤트 스트림용).
 
   tools/kpoll.sh                 # 기본 방 하나
-  tools/kpoll.sh ham bang        # 두 방 동시
+  tools/kpoll.sh notice work        # 두 방 동시
   tools/kpoll.sh all             # rooms.json 의 모든 방
   tools/kpoll.sh --interval 5 all
-  tools/kpoll.sh --replay 5 ham  # 시작할 때 최근 5개를 먼저 흘린다 (맥락 파악용)
+  tools/kpoll.sh --replay 5 notice  # 시작할 때 최근 5개를 먼저 흘린다 (맥락 파악용)
   tools/kpoll.sh --resume all    # 지난번 끊긴 지점부터 (그 사이 온 메시지를 복구한다)
 
-출력은 방이 섞이므로 항상 별칭을 붙인다:  [카톡/ham] 김감독: ...
-답장(인용)이면 무엇에 대한 답인지도 붙는다:  [카톡/ham] 김감독: 이거다  ↩︎(cut-03.mp4)
+출력은 방이 섞이므로 항상 별칭을 붙인다:  [카톡/notice] 김감독: ...
+답장(인용)이면 무엇에 대한 답인지도 붙는다:  [카톡/notice] 김감독: 이거다  ↩︎(cut-03.mp4)
 
 --- 왜 시간 커서인가 (2026-08-15 실측) ---
 처음엔 "최신 30개를 떠서 logId > last 인 것만" 이었다. 세 가지 이유로 메시지를 놓친다.

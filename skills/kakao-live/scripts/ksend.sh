@@ -2,9 +2,9 @@
 # 카톡 전송 래퍼 — 방은 rooms.json 에서 고르고, 무슨 일이 있었는지는 logs/ 에 남긴다.
 #
 #   ksend.sh "메시지"                 기본 방(rooms.json 의 default)
-#   ksend.sh -r bang "메시지"          별칭으로 방 지정
-#   KROOM=bang ksend.sh "메시지"       환경변수로도 됨
-#   echo "메시지" | ksend.sh -r ham -   stdin
+#   ksend.sh -r work "메시지"          별칭으로 방 지정
+#   KROOM=work ksend.sh "메시지"       환경변수로도 됨
+#   echo "메시지" | ksend.sh -r notice -   stdin
 #   KSEND_TRACE=0 ksend.sh "..."      kmsg 의 AX 추적 끄기(기본 켬)
 #
 # 실측으로 확인한 것 (2026-08-15):

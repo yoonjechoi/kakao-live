@@ -41,24 +41,26 @@ scripts/setup.sh          # 도구·권한·창 상태 점검 → 방 검색 →
 ```bash
 scripts/krooms.sh                     # 등록된 방
 scripts/krooms.sh --find 우리팀        # 새 방 찾기 (오픈채팅·그룹방 양쪽)
-scripts/krooms.sh --default bang      # 기본 방 변경
+scripts/krooms.sh --default work      # 기본 방 변경
 scripts/kfind.sh 우리팀                # 방·친구 조회 — 어느 방인지 확실치 않으면 먼저 이걸
 scripts/kfind.sh --friends 철수        # 친구만 (대화명·userId·1:1 방 유무)
 
 scripts/kpoll.sh                      # 기본 방 폴링 (10초)
-scripts/kpoll.sh ham bang             # 여러 방 동시
+scripts/kpoll.sh notice work             # 여러 방 동시
 scripts/kpoll.sh all --replay 5       # 전부 + 시작 시 최근 5개
 scripts/kpoll.sh --resume all         # 끊긴 지점부터 (그 사이 메시지 복구)
 
 scripts/ksend.sh "메시지"              # 기본 방
-scripts/ksend.sh -r bang "메시지"      # 방 지정
-scripts/kimg.sh -r bang 사진.jpg
-scripts/kvid.sh -r bang 영상.mp4              # 동영상·오디오·임의 파일
-scripts/kvid.sh -r bang -n cut-03 영상.mp4     # 보낼 이름 지정 (케밥케이스)
+scripts/ksend.sh -r work "메시지"      # 방 지정
+scripts/ksay.sh -r work "첫 줄
+둘째 줄"                              # 문단 — 개행이 살아 있는 한 메시지
+scripts/kimg.sh -r work 사진.jpg
+scripts/kvid.sh -r work 영상.mp4              # 동영상·오디오·임의 파일
+scripts/kvid.sh -r work -n cut-03 영상.mp4     # 보낼 이름 지정 (케밥케이스)
 scripts/kvid.sh --what cut-03                 # 그 이름이 어느 원본이었나
 
 scripts/kget.sh --list                # 첨부 목록만
-scripts/kget.sh -r ham --days 30      # 사진·동영상·파일 원본 다운로드
+scripts/kget.sh -r notice --days 30      # 사진·동영상·파일 원본 다운로드
 scripts/kget.sh --kind video
 
 scripts/klog.sh tail                  # 무슨 일이 있었나
@@ -69,8 +71,8 @@ scripts/kb_rollup.sh                  # 대화를 markdown 으로
 폴링은 **Monitor 도구로 `persistent: true`** 로 띄운다. 각 줄이 이벤트가 된다.
 
 ```
-[카톡/ham] 김감독: 이 컷 각도가 이상한데
-[카톡/ham] 김감독: 이게 낫다  ↩︎(cut-03.mp4)
+[카톡/notice] 김감독: 이 컷 각도가 이상한데
+[카톡/notice] 김감독: 이게 낫다  ↩︎(cut-03.mp4)
 ```
 
 `↩︎(…)` 는 **답장(인용)** 이고 괄호 안이 그 대상이다. 파일 여러 개를 보낸 뒤 "이게 낫다" 만
@@ -86,7 +88,7 @@ scripts/kb_rollup.sh                  # 대화를 markdown 으로
   작업 얘기라서 도움이 되겠다 싶어 끼어드는 것도 과하다 — 실제로 그렇게 지적받았다.
 - **사람 많은 방에서는 3~4줄씩 끊고 반응을 본다.** 한 번에 쏟으면 도배로 보인다.
 - **한 메시지는 한 생각까지.** 개행이 전송키라 줄바꿈이 없다 — 길면 그대로 벽이 된다.
-  `ksend.sh` 가 100자를 넘으면 경고한다. 경고가 뜨면 끊어라.
+  `ksend.sh` 가 100자를 넘으면 경고한다. 경고가 뜨면 끊거나 `ksay.sh` 로 문단을 보내라.
 - **처음 들어갈 때는 사용자가 먼저 상황을 설명하게 한다.** 불쑥 봇이 말하면 놀란다.
 - **개인정보를 묻는 말은 거절한다.** 남의 계정을 빌려 쓰는 처지다.
 - 사람 이름은 **방에 보이는 이름**으로 부른다. 실명이 아니다(아래 함정 참고).

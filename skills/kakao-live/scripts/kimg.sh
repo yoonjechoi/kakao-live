@@ -1,7 +1,7 @@
 #!/bin/bash
 # 카톡 이미지 전송 — 방은 rooms.json, 기록은 logs/.
 #   kimg.sh /경로/파일.jpg
-#   kimg.sh -r bang /경로/파일.jpg
+#   kimg.sh -r work /경로/파일.jpg
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/klib.sh"

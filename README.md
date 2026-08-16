@@ -111,9 +111,16 @@ scripts/kpoll.sh all --replay 5       # 시작할 때 최근 5개 먼저
 scripts/kpoll.sh --resume all         # 끊긴 지점부터 복구
 
 # 보내기
-scripts/ksend.sh "메시지"
+scripts/ksend.sh "메시지"                       # 한 줄 — 개행은 " / " 로 바뀐다
 scripts/ksend.sh -r work "메시지"
 echo "긴 내용" | scripts/ksend.sh -
+
+# 문단으로 보내기 — 개행이 살아 있는 한 메시지
+scripts/ksay.sh -r work "첫 줄
+둘째 줄
+셋째 줄"
+cat 글.txt | scripts/ksay.sh -r work -        # 10줄씩 끊고 1/3 처럼 번호를 붙인다
+KSAY_CHUNK=6 scripts/ksay.sh -r work "..."    # 끊는 단위 조절
 scripts/kimg.sh -r work 사진.jpg
 scripts/kvid.sh -r work 영상.mp4               # 동영상·오디오·임의 파일
 scripts/kvid.sh -r work -n cut-03 영상.mp4      # 보낼 이름을 지정 (케밥케이스)
@@ -308,10 +315,26 @@ scripts/kfind.sh 우리팀       # 고르기 — 걸리는 방을 전부 펼쳐 
 ### 개행은 전송키다
 메시지에 개행이 있으면 카톡 UI 가 전송으로 처리해 쪼개진다. `ksend.sh` 가 공백으로 바꾼다.
 
-### 메시지가 길면 벽이 된다
-개행이 전송키라 **한 메시지 안에서 줄을 바꿀 방법이 없다.** 길게 쓰면 그대로 벽으로 붙는다.
+### 메시지가 길면 벽이 된다 — 그래서 `ksay.sh` 가 있다
+**타이핑으로는** 한 메시지 안에서 줄을 바꿀 수 없다(위 항목). 길게 쓰면 그대로 벽으로 붙는다.
 `ksend.sh` 는 100자(`KSEND_WARN_LEN`)를 넘으면 경고하고, `klog.sh stat` 이 길이 분포를 같이 찍는다.
 재지 않으면 계속 길어진다 — 실측 중앙 89자, 58%가 80자를 넘은 채로 굴러가고 있었다.
+
+**우회로가 있다.** 개행이 죽는 것은 `kmsg` 가 **타이핑**하기 때문이다.
+입력창 값을 **통째로 써넣고** 전송 버튼을 누르면 개행이 살아남는다 — `ksay.sh` 가 그렇게 한다.
+3줄을 넣으면 DB 에 `'...입니다.\n...바뀌면\n...보내겠습니다.'` 로 **한 건**이 들어간다.
+10줄씩 끊고(`KSAY_CHUNK`), 여러 문단이면 `🤖 1/3` 처럼 번호를 붙인다 —
+번호가 없으면 받는 쪽이 "2번째가 안 왔다" 를 짚을 수 없다.
+
+⚠ 이 방식의 함정: **요소 인덱스는 재사용하면 안 된다.**
+값을 넣으면 입력창이 커지며 트리가 다시 그려져 **전송 버튼 인덱스가 바뀐다**(122 → 128 을 봤다).
+설정 전 인덱스로 누르면 엉뚱한 버튼을 눌러 **조용히 아무 일도 안 일어난다.** 에러도 안 난다.
+메시지가 쌓여도 같은 이유로 밀린다 — 인덱스를 고정해두고 연달아 보냈다가 중복 전송 사고를 냈다.
+그래서 `ksay.sh` 는 **값 설정 전후로 두 번** 트리를 읽는다.
+
+`ksay.sh` 는 접근성 조작에 `orca computer` 를 쓴다. 없으면 `ksend.sh` 로 한 줄씩 보내면 된다 —
+기능이 줄 뿐 동작은 한다. 직접 만들려면 `pyobjc-framework-Quartz` + `pyobjc-framework-ApplicationServices`
+로 같은 일을 할 수 있다(`AXUIElement` 로 읽고 `CGEvent` 로 누른다).
 
 ### 동영상은 `kmsg` 로 못 보낸다 — 붙여넣기로 넣는다
 `kmsg` 에는 `send-image` 뿐이라 mp4 를 주면 NSImage 로 열려다 죽는다.

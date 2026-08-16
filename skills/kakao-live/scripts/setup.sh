@@ -103,7 +103,7 @@ read -r -p "등록할 방 이름의 일부 (예: 우리팀): " KW
 echo; find_rooms "$KW"
 echo
 read -r -p "chatId: " CID
-read -r -p "별칭 (영문 짧게, 예: ham): " ALIAS
+read -r -p "별칭 (영문 짧게, 예: notice): " ALIAS
 read -r -p "kmsg 가 검색할 방 이름 조각 (예: 우리팀 공지): " SEARCH
 read -r -p "설명 (선택): " LABEL
 
