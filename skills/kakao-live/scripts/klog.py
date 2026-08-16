@@ -150,6 +150,13 @@ def cmd_stat(args):
               % (total, len(ok), pct(len(ok), total), len(fail), len(retry)))
         print("  소요: %s" % summarize([r["dur_ms"] for r in ok if "dur_ms" in r]))
         first = len([r for r in ok if r.get("attempt", 1) == 1])
+        # 메시지가 길면 카톡에서 벽처럼 보인다. 개행을 못 쓰니 짧게 쓰는 수밖에 없다.
+        # 안 재면 계속 길어진다 — 실제로 중앙 89자, 58%가 80자 초과인 채로 굴러갔다.
+        lens = [r["len"] for r in ok if isinstance(r.get("len"), int)]
+        if lens:
+            over = sum(1 for l in lens if l > 100)
+            print("  메시지 길이: %s  100자 초과 %d건 (%d%%)  ← 길면 읽기 힘들다"
+                  % (summarize(lens, "자"), over, 100 * over // len(lens)))
         print("  1회에 성공: %d/%d (%.0f%%)  ← 낮으면 kfocus/창유지가 안 듣는 것"
               % (first, len(ok), pct(first, len(ok))))
         byroom = {}

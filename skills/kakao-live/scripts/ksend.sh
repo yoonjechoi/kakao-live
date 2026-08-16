@@ -30,6 +30,14 @@ if [ "${1:-}" = "-" ]; then MSG=$(cat); else MSG="${1:?message required}"; fi
 MSG=$(printf '%s' "$MSG" | tr '\n' ' ' | sed 's/  */ /g')
 MSG="🤖 $MSG"
 
+# 길면 카톡에서 벽처럼 보인다. 개행이 전송키라 한 메시지 안에서 줄을 못 바꾸므로
+# **짧게 쓰는 것 말고 방법이 없다.** 2026-08-16 그렇게 지적받았다 — 그때 중앙 89자,
+# 58%가 80자를 넘고 있었다. 눈에 안 보이니 계속 길어졌다. 그래서 잰다.
+KSEND_WARN_LEN="${KSEND_WARN_LEN:-100}"
+if [ "${#MSG}" -gt "$KSEND_WARN_LEN" ]; then
+  echo "⚠ ${#MSG}자 — 카톡에선 길다. 한 생각만 남기고 끊어라 (기준 ${KSEND_WARN_LEN}자)" >&2
+fi
+
 TRACE=""; [ "${KSEND_TRACE:-1}" = "1" ] && TRACE="--trace-ax"
 
 # 어느 방으로 나가는지 항상 남긴다 — 사람 많은 방에 오발송하면 되돌릴 수 없다

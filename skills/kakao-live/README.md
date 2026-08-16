@@ -45,6 +45,7 @@ klog ── JSONL ──▶ send/recv/ae.focus/audit 한 타임라인에
 | `kpoll.sh` `kpoll.py` | 다중 방 폴링. 시간 커서 + 누락 대조 |
 | `ksend.sh` | 메인 전송기. 창 유지·재시도·개행 치환·🤖 접두사 |
 | `kimg.sh` | 이미지 전송 |
+| `kvid.sh` | 동영상·오디오·임의 파일 전송. 짧은 이름으로 바꿔 올리고 대응표를 남긴다 |
 | `kfocus.sh` | 카카오톡 '채팅' 탭 강제 전환. 전송기가 내부에서 부른다 |
 | `kget.sh` `kget.py` | 첨부 다운로드 (사진·동영상·파일) |
 | `klog.sh` `klog.py` | 로그 조회·분석 (`tail` / `stat` / `grep` / `raw`) |

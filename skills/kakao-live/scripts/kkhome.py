@@ -26,3 +26,17 @@ def ensure(*parts):
     d = sub(*parts)
     os.makedirs(d, exist_ok=True)
     return d
+
+
+# 셸 스크립트도 같은 답을 얻어야 한다. 없으면 각자 ../logs 같은 상대경로를 새로 지어내고,
+# 그 순간 $KAKAO_HOME 이 한 곳에서 정해진다는 약속이 깨진다.
+#   kkhome.py home            → <KAKAO_HOME>
+#   kkhome.py sub logs a.tsv  → <KAKAO_HOME>/logs/a.tsv
+#   kkhome.py ensure files    → 만들고 나서 경로를 찍는다
+if __name__ == "__main__":
+    import sys
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "home"
+    fn = {"home": lambda *a: home(), "sub": sub, "ensure": ensure}.get(cmd)
+    if fn is None:
+        sys.exit("kkhome.py [home|sub|ensure] [parts...]")
+    print(fn(*sys.argv[2:]))

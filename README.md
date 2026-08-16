@@ -112,6 +112,10 @@ scripts/ksend.sh "메시지"
 scripts/ksend.sh -r work "메시지"
 echo "긴 내용" | scripts/ksend.sh -
 scripts/kimg.sh -r work 사진.jpg
+scripts/kvid.sh -r work 영상.mp4               # 동영상·오디오·임의 파일
+scripts/kvid.sh -r work -n cut-03 영상.mp4      # 보낼 이름을 지정 (케밥케이스)
+scripts/kvid.sh --what cut-03                  # 그 이름이 어느 원본이었나
+scripts/kvid.sh --names                        # 전체 대응표
 
 # 첨부 받기
 scripts/kget.sh --list                # 뭐가 있는지 먼저
@@ -187,6 +191,8 @@ scripts/klog.sh stat                  # 성공률·소요·AX 비용
 - **부를 때만 나와라.** 호명이나 질문이 있을 때만 답한다.
   작업 얘기라서 도움이 되겠다 싶어 끼어드는 것도 과하다.
 - **방에는 결론 한두 줄까지.** 과정·수치·설계는 터미널로. 기술 대화를 방에 쏟지 마라.
+- **한 메시지는 한 생각까지.** 개행이 전송키라 줄바꿈이 없다 — 길면 그대로 벽이 된다.
+  `ksend.sh` 가 100자를 넘으면 경고한다. 경고가 뜨면 끊어라.
 - **처음 들어갈 때는 사용자가 먼저 상황을 설명하게 한다.** 불쑥 봇이 말하면 놀란다.
 - **개인정보를 묻는 말은 거절한다.** 남의 계정을 빌려 쓰는 처지다.
 - 사람은 **방에 보이는 이름**으로 부른다. 실명을 알아도 쓰지 않는다(아래 함정).
@@ -240,6 +246,24 @@ ioreg -n Root -d1 -a | grep -A1 CGSSessionScreenIsLocked   # true 면 잠긴 것
 
 ### 개행은 전송키다
 메시지에 개행이 있으면 카톡 UI 가 전송으로 처리해 쪼개진다. `ksend.sh` 가 공백으로 바꾼다.
+
+### 메시지가 길면 벽이 된다
+개행이 전송키라 **한 메시지 안에서 줄을 바꿀 방법이 없다.** 길게 쓰면 그대로 벽으로 붙는다.
+`ksend.sh` 는 100자(`KSEND_WARN_LEN`)를 넘으면 경고하고, `klog.sh stat` 이 길이 분포를 같이 찍는다.
+재지 않으면 계속 길어진다 — 실측 중앙 89자, 58%가 80자를 넘은 채로 굴러가고 있었다.
+
+### 동영상은 `kmsg` 로 못 보낸다 — 붙여넣기로 넣는다
+`kmsg` 에는 `send-image` 뿐이라 mp4 를 주면 NSImage 로 열려다 죽는다.
+`kvid.sh` 는 NSPasteboard 에 파일 URL 을 올리고 편집 메뉴의 Paste 를 AX 로 클릭한다.
+
+- AppleScript 의 `set the clipboard to POSIX file` 은 카톡이 안 받는다 — NSPasteboard 여야 한다.
+- `set frontmost to true` 만으로는 키 입력이 카톡에 닿지 않는다. `activate` 를 해야 ⌘V·Return 이 먹는다.
+- **성공 판정은 화면이 아니라 DB 로 한다.** 마지막 메시지의 **id** 가 바뀌었는지 보고,
+  내용·타입으로 비교하지 마라 — 영상을 연달아 보내면 둘 다 `video` 라 "안 갔다"고 읽고
+  재전송해 방을 도배한다.
+- 보낼 때 **파일 이름을 짧은 케밥케이스로 바꿔 올린다**(원본은 그대로 둔다).
+  `sfx_One_s_20260816_183555_pitchslow.mp3` 를 올려놓고 "어느 거요" 라고 물으면 사람은 못 짚는다.
+  대응표는 `<KAKAO_HOME>/kvid_names.tsv`, 조회는 `kvid.sh --what <이름>`.
 
 ### 첨부는 인증 없이 받아진다
 주소가 `NTChatMessage.attachment` JSON 안에 서명까지 박혀 있다.

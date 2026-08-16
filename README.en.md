@@ -117,6 +117,10 @@ scripts/ksend.sh "message"
 scripts/ksend.sh -r work "message"
 echo "long text" | scripts/ksend.sh -
 scripts/kimg.sh -r work photo.jpg
+scripts/kvid.sh -r work clip.mp4               # video, audio, any file
+scripts/kvid.sh -r work -n cut-03 clip.mp4     # name it before sending (kebab-case)
+scripts/kvid.sh --what cut-03                  # which original was that?
+scripts/kvid.sh --names                        # the whole mapping
 
 # attachments
 scripts/kget.sh --list                # see what's there first
@@ -195,6 +199,8 @@ Learned the hard way in real group chats. These are manners, not engineering.
 - **Speak only when spoken to.** Answer when named or asked a question.
   Jumping in because a work topic came up and you could help is still too much.
 - **In the room, one or two lines of conclusion.** Process, numbers, and design go to the terminal.
+- **One thought per message.** A newline is the send key, so there are no line breaks inside
+  a message — a long one lands as a wall. `ksend.sh` warns past 100 characters. Then cut it.
 - **Let the human introduce you first.** A bot appearing out of nowhere startles people.
 - **Refuse requests for personal information.** You are borrowing someone's account.
 - Call people by **the name shown in the room**, never their real name (see Pitfalls).
@@ -251,6 +257,25 @@ immediately. Verified at zero loss and zero duplicates.
 ### A newline is the send key
 A newline inside a message makes the KakaoTalk UI send it, splitting your message.
 `ksend.sh` replaces newlines with spaces.
+
+### A long message becomes a wall
+A newline is the send key, so **there is no way to break a line inside one message.**
+`ksend.sh` warns past 100 characters (`KSEND_WARN_LEN`), and `klog.sh stat` prints the length
+distribution alongside. Unmeasured, messages only grow — ours were running at a median of 89
+characters with 58% over 80 before anyone looked.
+
+### Video cannot go through `kmsg` — it gets pasted in
+`kmsg` only has `send-image`; hand it an mp4 and it dies trying to open it as an NSImage.
+`kvid.sh` puts the file URL on the NSPasteboard and clicks Edit → Paste through the AX tree.
+
+- AppleScript's `set the clipboard to POSIX file` is not accepted by KakaoTalk — it must be NSPasteboard.
+- `set frontmost to true` alone does not deliver keystrokes to KakaoTalk; you need `activate`.
+- **Success is judged from the DB, not the screen.** Compare the **id** of the last message,
+  never its content or type — send two videos in a row and both read as `video`, so a type
+  comparison concludes "it didn't send" and retries until the room is flooded.
+- The file is **copied to a short kebab-case name before sending** (the original is untouched).
+  Nobody can point at `sfx_One_s_20260816_183555_pitchslow.mp3` when you ask which one it was.
+  The mapping lives in `<KAKAO_HOME>/kvid_names.tsv`; look it up with `kvid.sh --what <name>`.
 
 ### Attachments download without authentication
 The URL lives inside the `NTChatMessage.attachment` JSON with the signature already baked in.
