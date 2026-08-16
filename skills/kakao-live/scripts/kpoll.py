@@ -9,6 +9,7 @@
   tools/kpoll.sh --resume all    # 지난번 끊긴 지점부터 (그 사이 온 메시지를 복구한다)
 
 출력은 방이 섞이므로 항상 별칭을 붙인다:  [카톡/ham] 김감독: ...
+답장(인용)이면 무엇에 대한 답인지도 붙는다:  [카톡/ham] 김감독: 이거다  ↩︎(cut-03.mp4)
 
 --- 왜 시간 커서인가 (2026-08-15 실측) ---
 처음엔 "최신 30개를 떠서 logId > last 인 것만" 이었다. 세 가지 이유로 메시지를 놓친다.
@@ -60,7 +61,8 @@ SELECT m.chatId, m.logId, m.sentAt,
                 (SELECT NULLIF(u.nickName,'') FROM NTUser u
                  WHERE u.userId = m.authorId AND NULLIF(u.nickName,'') IS NOT NULL LIMIT 1),
                 '?'),
-       m.message
+       m.message,
+       m.attachment
 FROM NTChatMessage m
 WHERE m.chatId IN ({chat_ids})
   AND m.sentAt >= {since}
@@ -85,6 +87,26 @@ FROM NTChatMessage m
 WHERE m.chatId IN ({chat_ids})
   AND m.sentAt >= {since}
 """
+
+
+def reply_ctx(att):
+    """답장(인용)이 무엇을 가리키는지 한 조각으로 돌려준다. 아니면 빈 문자열.
+
+    답장으로 온 메시지는 본문만 보면 대상을 알 수 없다 — "이거다" 만 남는다.
+    대상은 **attachment JSON** 안에 있다: src_logId / src_userId / src_message.
+    `referer` 컬럼은 0 이라 쓸모없다. 이걸 안 붙이면 사람에게 "어느 거요?" 를
+    매번 되물어야 한다(실제로 그랬다).
+    """
+    if not att:
+        return ""
+    try:
+        d = json.loads(att)
+    except Exception:
+        return ""
+    src = d.get("src_message")
+    if not src:
+        return ""
+    return "  ↩︎(%s)" % str(src).replace("\n", " ")[:60]
 
 
 def audit(chat_ids, since, me, passed):
@@ -198,9 +220,9 @@ def main(argv):
     if replay and not resume:
         for a in targets:
             rows, _ms = query([conf["rooms"][a]["chatId"]], 0, me, limit=replay, newest_first=True)
-            for cid, lid, ts, sender, text in reversed(rows or []):
-                print("[카톡/%s] %s: %s" % (a, sender, (text or "").replace("\n", " / ")[:400]),
-                      flush=True)
+            for cid, lid, ts, sender, text, att in reversed(rows or []):
+                print("[카톡/%s] %s: %s%s" % (a, sender, (text or "").replace("\n", " / ")[:400],
+                      reply_ctx(att)), flush=True)
                 seen[a][int(lid)] = None
 
     tick = 0
@@ -216,7 +238,7 @@ def main(argv):
                 if rows is None:              # 쿼리 실패 — 이미 로그에 남았다. 커서는 그대로 둔다
                     break
                 fresh = 0
-                for cid, lid, ts, sender, text in rows:
+                for cid, lid, ts, sender, text, att in rows:
                     a = by_chat.get(cid)
                     if a is None:
                         continue
@@ -226,7 +248,7 @@ def main(argv):
                     seen[a][lid] = None
                     if len(seen[a]) > SEEN_MAX:
                         seen[a].popitem(last=False)
-                    line = (text or "").replace("\n", " / ")[:400]
+                    line = (text or "").replace("\n", " / ")[:400] + reply_ctx(att)
                     print("[카톡/%s] %s: %s" % (a, sender, line), flush=True)
                     klog.write("kpoll", "recv", room=a, sender=sender, text=line, log_id=lid, sent_at=float(ts))
                     cur[a] = max(cur[a], float(ts))

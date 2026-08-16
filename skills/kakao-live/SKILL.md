@@ -42,6 +42,8 @@ scripts/setup.sh          # 도구·권한·창 상태 점검 → 방 검색 →
 scripts/krooms.sh                     # 등록된 방
 scripts/krooms.sh --find 우리팀        # 새 방 찾기 (오픈채팅·그룹방 양쪽)
 scripts/krooms.sh --default bang      # 기본 방 변경
+scripts/kfind.sh 우리팀                # 방·친구 조회 — 어느 방인지 확실치 않으면 먼저 이걸
+scripts/kfind.sh --friends 철수        # 친구만 (대화명·userId·1:1 방 유무)
 
 scripts/kpoll.sh                      # 기본 방 폴링 (10초)
 scripts/kpoll.sh ham bang             # 여러 방 동시
@@ -68,7 +70,11 @@ scripts/kb_rollup.sh                  # 대화를 markdown 으로
 
 ```
 [카톡/ham] 김감독: 이 컷 각도가 이상한데
+[카톡/ham] 김감독: 이게 낫다  ↩︎(cut-03.mp4)
 ```
+
+`↩︎(…)` 는 **답장(인용)** 이고 괄호 안이 그 대상이다. 파일 여러 개를 보낸 뒤 "이게 낫다" 만
+오면 무엇을 가리키는지 알 수 없다 — 이 표시로 짚어라. 되묻지 마라.
 
 ## 방에서 지킬 것
 
@@ -98,6 +104,25 @@ AX 를 전혀 건드리지 않고 4줄 찍고 끝난다. 전송 경로가 살아
 ### 카카오톡 창을 닫으면 전송이 통째로 막힌다
 접근성 트리가 창을 0개로 보고한다. 메인 창은 열어둬야 한다.
 '친구' 탭에 있으면 방 이름 검색이 실패한다 — `kfocus.sh` 가 '채팅' 탭으로 되돌린다.
+
+### 방을 이름으로 짚을 때 — **부분일치라 엉뚱한 방으로 간다**
+`kmsg` 도 `kakaocli` 도 정확일치가 없다. 조각이 두 방에 걸리면 그중 하나로 나가고
+**되돌릴 수 없다.** 그래서 순서가 정해져 있다.
+
+1. 방이 확실치 않으면 **먼저 `scripts/kfind.sh <조각>`** — 걸리는 방을 전부 펼쳐 준다.
+   `⚠ N 곳에 걸린다` 가 뜨면 그 조각으로 보내지 마라.
+2. 전송 래퍼(`ksend`·`kimg`·`kvid`)는 보내기 직전에 DB 로 한 번 더 세고,
+   하나가 아니면 **멈춘다**(`klib.sh` 의 `kroom_verify`).
+3. 막혔으면 푸는 방법은 하나다 — **`rooms.json` 의 `search` 를 더 좁은 조각으로 고친다.**
+   `KROOM_SKIP_VERIFY=1` 로 끄지 마라. 끄면 `room verify.skipped` 가 로그에 남는다.
+
+방 이름은 세 군데(`NTChatRoom.chatName` / `NTOpenLink.linkName` / `NTChatMeta` type=3)에
+나뉘어 있고 첫 번째는 대개 비어 있다. **1:1 방은 이름이 아예 없어** 이름으로는 못 고른다 —
+`kfind.sh --friends` 로 `userId`·`directChatId` 를 보고 짚어라.
+
+### 답장은 본문에 대상이 없다
+카톡 답장(인용)의 대상은 `NTChatMessage.attachment` JSON 의 `src_message` 에 있다
+(`referer` 컬럼은 0 이라 쓸모없다). `kpoll.py` 가 `↩︎(대상)` 으로 붙여 준다.
 
 ### `nickName` 은 대화명이 아니다
 일반 그룹방에서 `NTUser.nickName` 은 **주소록에 저장된 이름(실명)** 이 나온다.

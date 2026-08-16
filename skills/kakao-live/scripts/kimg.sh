@@ -12,6 +12,18 @@ set -- ${KROOM_ARGS+"${KROOM_ARGS[@]}"}
 ALIAS=$(kroom "$KROOM_ALIAS" alias) || { klog room resolve.fail "arg=${KROOM_ALIAS:-?}" tool_caller=kimg; exit 1; }
 CHAT=$(kroom  "$KROOM_ALIAS" search) || exit 1
 LABEL=$(kroom "$KROOM_ALIAS" label)  || exit 1
+CHATID=$(kroom "$KROOM_ALIAS" chatId) || exit 1
+
+# 보내기 전에 **이 검색어가 정말 그 방 하나만 가리키는지** 확인한다. (klib.sh 의 kroom_verify)
+if [ "${KROOM_SKIP_VERIFY:-0}" = "1" ]; then
+  klog room verify.skipped "room=$ALIAS" "needle=$CHAT"
+else
+  if ! kroom_verify "$CHAT" "$CHATID"; then
+    echo "전송을 멈췄다 — rooms.json 의 search 를 더 좁게 고쳐라 (방: $ALIAS)" >&2
+    klog kimg send.blocked "room=$ALIAS" "needle=$CHAT" reason=ambiguous_room
+    exit 1
+  fi
+fi
 
 IMG="${1:?image path required}"
 [ -f "$IMG" ] || { echo "그런 파일이 없다: $IMG" >&2; klog kimg image.fail "room=$ALIAS" err=no_such_file "path=$IMG"; exit 1; }

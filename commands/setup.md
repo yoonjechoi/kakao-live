@@ -71,7 +71,17 @@ kakaocli query "SELECT DISTINCT authorId FROM NTChatMessage WHERE chatId=<chatId
 ```
 
 어느 것이 본인인지 확실하지 않으면 사용자에게 확인한다.
+
 **`search` 는 다른 방에 함께 걸리지 않는 조각으로 골라라.** 잘못 고르면 엉뚱한 방으로 간다.
+정하기 전에 반드시 확인한다.
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/kakao-live/scripts/kfind.sh --rooms <이름조각>
+```
+
+`⚠ N 곳에 걸린다` 가 뜨면 **그 조각을 쓰지 마라.** 각 방의 전체 이름에서
+다른 방에 없는 조각을 다시 골라 같은 방법으로 확인한다. `✓ 한 곳만 가리킨다` 여야 넘어간다.
+(그래도 놓치면 전송 래퍼가 보내기 직전에 다시 세어 멈춘다 — 하지만 여기서 잡는 게 낫다.)
 
 ## 4. 실제로 되는지 확인 — 건너뛰지 마라
 

@@ -105,6 +105,9 @@ scripts/klog.sh stat               # confirm it actually went out
 scripts/krooms.sh                     # list
 scripts/krooms.sh --find teamname     # find a new room
 scripts/krooms.sh --default work      # change the default
+scripts/kfind.sh teamname             # look up rooms AND friends (check before you send)
+scripts/kfind.sh --rooms teamname     # rooms only
+scripts/kfind.sh --friends chulsoo    # friends only (display name, userId, 1:1 room)
 
 # receiving
 scripts/kpoll.sh                      # default room, every 10s
@@ -137,7 +140,13 @@ Polling prints one line per message, prefixed with the room alias.
 ```
 [카톡/notice] Director Kim: this camera angle is off
 [카톡/work] Chulsoo: on it
+[카톡/work] Director Kim: this one's better  ↩︎(cut-03.mp4)
 ```
+
+A trailing `↩︎(…)` means the message is a **reply (quote)**, and the parentheses hold
+what it replies to. A KakaoTalk reply carries none of that in its body — send three
+files, get back "this one's better", and you'd have to ask which one. So the poller
+prints the target alongside.
 
 **In Claude Code, run the poller through the Monitor tool with `persistent: true`.**
 Each line becomes an event.
@@ -184,6 +193,8 @@ To share one workspace across projects: `export KAKAO_HOME=~/.kakao`.
 
 These are different things — don't mix them up. Pick a `search` fragment that
 **doesn't also match another room**, or messages go to the wrong place.
+Run `kfind.sh <fragment>` to see how many rooms it hits before you commit to it;
+the senders count again at send time (see "Room search is a substring match" below).
 
 > `chatId` **differs per machine.** Re-run `setup.sh --find` after moving computers.
 
@@ -229,6 +240,55 @@ ioreg -n Root -d1 -a | grep -A1 CGSSessionScreenIsLocked   # true = locked
 ```
 
 **Reading works while locked.** Polling hits the local DB and doesn't care; only writing breaks.
+
+### Room search is a substring match — count the hits before sending
+Both `kmsg` and `kakaocli` locate a room by **substring match** on its name. There is no
+exact-match option. If your `search` fragment matches two rooms, **the message goes to the
+wrong one, and you cannot take it back.** This nearly happened: a fragment meant for a 1:1
+chat also matched an open chat (2000+ members) and another group chat, and measurement
+showed the group chat winning, not the 1:1.
+
+The defense splits in two. **A human picks; the tool stops.**
+
+```bash
+scripts/kfind.sh teamname     # picking — lays out every room the fragment hits
+```
+
+```
+── 방 ──────────────────────────────────────────
+  222222222222222222   오픈채팅   2593명  Team info sharing room
+  111111111111111      그룹          8명  Our lovely team
+  ⚠ 2 곳에 걸린다 — 이 조각으로는 전송하면 안 된다.
+```
+
+`ksend.sh`, `kimg.sh`, and `kvid.sh` re-check the same thing against the DB right before
+sending and **abort if it isn't exactly one room** (`kroom_verify` in `klib.sh`).
+
+```
+⚠ 'teamname' 이 방 2개에 걸린다 — 엉뚱한 방으로 갈 수 있어 멈춘다:
+전송을 멈췄다 — rooms.json 의 search 를 더 좁게 고쳐라 (방: work)
+```
+
+There is one way to unblock it: **narrow the `search` fragment in `rooms.json`.**
+`KROOM_SKIP_VERIFY=1` disables the check, but disabling it writes `room verify.skipped`
+to the log — the fact that you turned it off has to stay visible.
+
+Room names live in **three different places**. Look at only one and you get false results.
+
+| Table | What |
+|---|---|
+| `NTChatRoom.chatName` | usually an **empty string** |
+| `NTOpenLink.linkName` | open-chat name |
+| `NTChatMeta` (`type=3`) | ordinary group-chat name — often the only place a name exists |
+
+**A 1:1 room has no name at all**, so it can never be picked by name.
+`kfind.sh --friends` shows display name, `userId`, and `directChatId` instead.
+
+### A reply doesn't say what it replies to
+The target of a KakaoTalk reply (quote) is not in the message body. It's in the
+`NTChatMessage.attachment` JSON: `src_logId` / `src_userId` / `src_message`.
+**The `referer` column is 0 and useless.** `kpoll.py` reads it and appends `↩︎(target)`.
+Without it, send several files and get back "this one's better" and you have to ask, every time.
 
 ### `nickName` is not the display name
 In ordinary group chats `NTUser.nickName` is **the name saved in your address book —

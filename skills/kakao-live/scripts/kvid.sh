@@ -57,6 +57,17 @@ CHAT=$(kroom   "$KROOM_ALIAS" search) || exit 1
 LABEL=$(kroom  "$KROOM_ALIAS" label)  || exit 1
 CHATID=$(kroom "$KROOM_ALIAS" chatId) || exit 1
 
+# 보내기 전에 **이 검색어가 정말 그 방 하나만 가리키는지** 확인한다. (klib.sh 의 kroom_verify)
+if [ "${KROOM_SKIP_VERIFY:-0}" = "1" ]; then
+  klog room verify.skipped "room=$ALIAS" "needle=$CHAT"
+else
+  if ! kroom_verify "$CHAT" "$CHATID"; then
+    echo "전송을 멈췄다 — rooms.json 의 search 를 더 좁게 고쳐라 (방: $ALIAS)" >&2
+    klog kvid send.blocked "room=$ALIAS" "needle=$CHAT" reason=ambiguous_room
+    exit 1
+  fi
+fi
+
 VID="${1:?video path required}"
 CAPTION="${2:-}"
 [ -f "$VID" ] || { echo "그런 파일이 없다: $VID" >&2; klog kvid video.fail "room=$ALIAS" err=no_such_file "path=$VID"; exit 1; }

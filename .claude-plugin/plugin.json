@@ -1,7 +1,7 @@
 {
   "name": "kakao-live",
   "description": "macOS 카카오톡을 실시간으로 읽고 답한다. 방을 10초마다 폴링해 새 메시지를 이벤트로 받고, 메시지·이미지·동영상을 보내고, 사진·동영상·파일 첨부를 원본으로 내려받고, 모든 동작을 구조화 로그로 남긴다. 읽기는 로컬 DB(kakaocli), 쓰기는 접근성 API(kmsg).",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": {
     "name": "Yoonje Choi",
     "email": "yoonjechoi@reconnect.red"

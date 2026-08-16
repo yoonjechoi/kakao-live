@@ -32,6 +32,9 @@ klog ── JSONL ──▶ send/recv/ae.focus/audit 한 타임라인에
   방마다 부르면 방 수만큼 선형으로 늘어난다. 묶으면 방이 몇 개든 한 번이다.
 - **전송** — `-k`(keep-window)로 채팅창을 유지해 매번 검색하지 않는다.
   실측 1회 성공률 100%, 중앙 1.07초. 창이 쌓이면 느려진다(2개→7개일 때 1초→7초).
+  보내기 **직전에 방을 검증한다** — `search` 조각이 두 방에 걸리면 전송을 멈춘다.
+  방 이름은 세 테이블(`NTChatRoom` / `NTOpenLink` / `NTChatMeta` type=3)에 나뉘어 있어
+  한 군데만 보면 오탐이 난다. 고르는 건 `kfind.sh`, 멈추는 건 `kroom_verify`.
 - **기록** — 4계층. 래퍼 / Apple Event / kmsg 내부(`--trace-ax`) / **필터 감사**.
   마지막 것이 "조용한 게 없어서인가, 내가 안 들어서인가" 에 답한다.
 
@@ -41,6 +44,7 @@ klog ── JSONL ──▶ send/recv/ae.focus/audit 한 타임라인에
 |---|---|
 | `setup.sh` | 도구·권한 점검 → 방 검색 → `rooms.json` 생성 |
 | `krooms.sh` | 방 목록 / 기본 방 변경 / 새 방 찾기(`--find`) / 설정 위치(`--path`) |
+| `kfind.sh` | 방·친구 조회. **보내지 않는다** — 어느 조각이 안전한지 고르기 위한 것 |
 | `room.py` | `rooms.json` 조회 헬퍼. 래퍼들이 부른다 |
 | `kpoll.sh` `kpoll.py` | 다중 방 폴링. 시간 커서 + 누락 대조 |
 | `ksend.sh` | 메인 전송기. 창 유지·재시도·개행 치환·🤖 접두사 |
@@ -50,7 +54,7 @@ klog ── JSONL ──▶ send/recv/ae.focus/audit 한 타임라인에
 | `kget.sh` `kget.py` | 첨부 다운로드 (사진·동영상·파일) |
 | `klog.sh` `klog.py` | 로그 조회·분석 (`tail` / `stat` / `grep` / `raw`) |
 | `kb_rollup.sh` `kb_rollup.py` | 대화를 markdown 으로 |
-| `klib.sh` | 공용 함수 (`run_timeout`, `now_ms`, `klog`, `-r` 파싱). source 전용 |
+| `klib.sh` | 공용 함수 (`run_timeout`, `now_ms`, `klog`, `-r` 파싱, **`kroom_verify`**). source 전용 |
 | `kkhome.py` | 작업 공간 위치를 한 곳에서 정한다 (`$KAKAO_HOME`, 기본 `./.kakao/`) |
 
 **`kmsg send` 를 직접 부르지 마라.** 래퍼가 처리하는 것들이 있다 — 이유는 저장소 README 의 「함정」.

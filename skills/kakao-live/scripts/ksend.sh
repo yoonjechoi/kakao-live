@@ -24,6 +24,20 @@ set -- ${KROOM_ARGS+"${KROOM_ARGS[@]}"}
 ALIAS=$(kroom "$KROOM_ALIAS" alias) || { klog room resolve.fail "arg=${KROOM_ALIAS:-?}" tool_caller=ksend; exit 1; }
 CHAT=$(kroom  "$KROOM_ALIAS" search) || exit 1
 LABEL=$(kroom "$KROOM_ALIAS" label)  || exit 1
+CHATID=$(kroom "$KROOM_ALIAS" chatId) || exit 1
+
+# 보내기 전에 **이 검색어가 정말 그 방 하나만 가리키는지** 확인한다.
+# 부분일치라 여러 방에 걸리면 엉뚱한 방으로 나가고, 나간 건 되돌릴 수 없다.
+# KROOM_SKIP_VERIFY=1 로 끌 수 있으나, 끄면 왜 껐는지 로그에 남는다.
+if [ "${KROOM_SKIP_VERIFY:-0}" = "1" ]; then
+  klog room verify.skipped "room=$ALIAS" "needle=$CHAT"
+else
+  if ! kroom_verify "$CHAT" "$CHATID"; then
+    echo "전송을 멈췄다 — rooms.json 의 search 를 더 좁게 고쳐라 (방: $ALIAS)" >&2
+    klog ksend send.blocked "room=$ALIAS" "needle=$CHAT" reason=ambiguous_room
+    exit 1
+  fi
+fi
 
 if [ "${1:-}" = "-" ]; then MSG=$(cat); else MSG="${1:?message required}"; fi
 # 개행은 카톡 UI에서 전송키로 처리돼 메시지가 쪼개진다. 한 줄로 만든다.

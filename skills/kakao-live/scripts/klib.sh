@@ -62,3 +62,56 @@ fi
 
 # klog <tool> <event> [k=v ...]  — 구조화 로그 한 줄. 실패해도 도구를 죽이지 않는다.
 klog() { python3 "$KLIB_DIR/klog.py" write "$@" 2>/dev/null || true; }
+
+# ── 보내기 전 방 검증 ────────────────────────────────────────────
+# kmsg / kakaocli 는 방을 **이름 부분일치**로 찾는다. 정확일치 옵션이 없다.
+# 그래서 검색어가 여러 방에 걸리면 엉뚱한 방으로 나간다 — 나간 건 되돌릴 수 없다.
+#
+# 실제로 걸릴 뻔했다(2026-08-16). 개인톡에 보내려던 검색어가 같은 낱말을 품은
+# 오픈채팅(2000명대)과 다른 그룹방 두 곳에도 걸렸고, 실측하니 개인톡이 아니라
+# 그룹방이 잡혔다. 그래서 **보내기 전에 DB 로 세어보고, 하나가 아니면 멈춘다.**
+#
+# kroom_verify <검색어> <기대하는 chatId>
+#   0 = 안전 (그 검색어가 기대한 방 하나만 가리킨다)
+#   1 = 위험 (여러 방에 걸리거나 다른 방을 가리킨다) — 호출부는 전송을 멈춰야 한다
+kroom_verify() {
+  local needle="$1" want="$2"
+  [ -z "$needle" ] && return 1
+  local out
+  # 방 이름은 **세 군데에 나뉘어 있다.** 한 군데만 보면 오탐이 난다:
+  #   NTChatRoom.chatName   대부분 빈 문자열이다
+  #   NTOpenLink.linkName   오픈채팅 이름
+  #   NTChatMeta(type=3)    일반 그룹방 이름  ← 여기만 있는 방이 흔하다
+  out=$(run_timeout 30 kakaocli query "
+    SELECT DISTINCT r.chatId
+    FROM NTChatRoom r
+    LEFT JOIN NTOpenLink o ON o.linkId = r.linkId
+    LEFT JOIN NTChatMeta m ON m.chatId = r.chatId AND m.type = 3
+    WHERE (r.chatName LIKE '%${needle}%'
+        OR o.linkName  LIKE '%${needle}%'
+        OR m.content   LIKE '%${needle}%')
+  " 2>/dev/null) || { echo "검증 쿼리 실패 — 전송을 멈춘다" >&2; return 1; }
+
+  local ids n
+  ids=$(printf '%s' "$out" | grep -oE '[0-9]{6,}' | sort -u)
+  n=$(printf '%s\n' "$ids" | grep -c . || true)
+
+  if [ "${n:-0}" -eq 0 ]; then
+    echo "⚠ '$needle' 로 찾히는 방이 없다 — DB 이름이 비었을 수 있다(1:1 방 등)" >&2
+    klog room verify.none "needle=$needle" "want=$want"
+    return 1
+  fi
+  if [ "${n:-0}" -gt 1 ]; then
+    echo "⚠ '$needle' 이 방 ${n}개에 걸린다 — 엉뚱한 방으로 갈 수 있어 멈춘다:" >&2
+    printf '%s\n' "$ids" | sed 's/^/    /' >&2
+    klog room verify.ambiguous "needle=$needle" "want=$want" "hits=$n"
+    return 1
+  fi
+  if [ "$ids" != "$want" ]; then
+    echo "⚠ '$needle' 은 $ids 를 가리킨다 (기대한 것: $want) — 멈춘다" >&2
+    klog room verify.mismatch "needle=$needle" "want=$want" "got=$ids"
+    return 1
+  fi
+  klog room verify.ok "needle=$needle" "chat_id=$want"
+  return 0
+}
