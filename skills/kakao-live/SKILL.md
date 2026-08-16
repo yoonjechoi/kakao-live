@@ -13,6 +13,20 @@ macOS 카카오톡 데스크톱 앱을 상대로 **읽기는 로컬 DB, 쓰기�
 | 읽기 | `kakaocli` | 로컬 DB 직접 조회. 안정적 |
 | 쓰기 | `kmsg` | 접근성(AX) API로 UI 조작 |
 
+## 준비가 안 돼 있으면 먼저 준비한다
+
+이 스킬이 발동했는데 `$KAKAO_HOME/rooms.json`(기본 `./.kakao/rooms.json`) 이 없으면
+**아직 연결이 안 된 것이다.** 사용자에게 명령을 더 치라고 하지 말고 `/kakao-live:setup` 의
+절차를 그대로 수행해라 — 도구 설치, 권한 안내, 방 등록, 전송 확인까지.
+
+```bash
+kakaocli status                                  # loggedIn 이어야 한다
+ls "${KAKAO_HOME:-./.kakao}/rooms.json"          # 없으면 준비부터
+```
+
+사람이 대신 해야 하는 건 **macOS 권한 두 개(전체 디스크 접근·손쉬운 사용)와 카카오톡 로그인**
+뿐이다. 그 외에는 묻지 말고 진행해라.
+
 ## 처음 한 번
 
 ```bash

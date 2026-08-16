@@ -25,7 +25,20 @@ Reads go through the local database; writes go through the Accessibility (AX) AP
 /plugin install kakao-live@kakao-live
 ```
 
-### 2. Dependencies — missing ones fail silently
+### 2. One setup command
+
+```
+/kakao-live:setup
+```
+
+**That's it.** The agent installs the tools, walks the user through permissions,
+registers a room, and verifies that sending actually works.
+The only things a human must do are the two macOS permissions and signing into
+KakaoTalk — the command stops and asks at exactly those points.
+
+Steps 3–7 below are for doing it by hand, or for understanding what the command does.
+
+### 3. Dependencies — missing ones fail silently
 
 ```bash
 brew install silver-flight-group/tap/kakaocli   # read the KakaoTalk DB
@@ -39,7 +52,7 @@ Verify:
 command -v kakaocli kmsg timeout && echo OK
 ```
 
-### 3. ⚠ Two macOS permissions — **the human must do this**
+### 4. ⚠ Two macOS permissions — **the human must do this**
 
 An agent cannot grant these. Ask the user:
 
@@ -58,13 +71,13 @@ kakaocli status        # must print: App state: loggedIn
 Anything else means permissions are missing or KakaoTalk isn't signed in.
 **Stop here and tell the user.**
 
-### 4. ⚠ KakaoTalk desktop
+### 5. ⚠ KakaoTalk desktop
 
 Must be **signed in with its main window open**. Close the window and the accessibility
 tree reports zero windows — sending breaks entirely. A locked screen does the same
 (reading still works).
 
-### 5. Register a room
+### 6. Register a room
 
 ```bash
 scripts/setup.sh                   # interactive: check tools/permissions → find room → write rooms.json
@@ -74,7 +87,7 @@ scripts/setup.sh --find teamname   # search only
 
 Searches by partial room name and resolves the `chatId` (open chats and group chats alike).
 
-### 6. Send your first message to a small room
+### 7. Send your first message to a small room
 
 ```bash
 scripts/ksend.sh -r <alias> "test"
