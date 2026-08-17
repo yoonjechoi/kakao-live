@@ -15,6 +15,12 @@
 # 5) 「나에게서만 삭제」는 **선택 모드 → 체크박스 → 확인 → 삭제** 4단계다.
 #    한 번의 클릭으로 끝나지 않는다.
 # 6) 지워도 **DB(NTChatMessage)에는 남는다.** 판정은 화면으로 해야 한다.
+# 7) ★ **삭제 작업은 채팅 창을 닫아버린다.** 선택모드를 빠져나오면서 창이 사라지고,
+#    메인 창까지 없어지면 kmsg 가 방을 못 찾아 SEARCH_MISS 로 전송이 통째로 막힌다.
+#    복구: 남은 창을 모두 닫은 뒤 **Dock 아이콘을 클릭**하면 메인 창이 뜬다.
+#      osascript -e 'tell application "System Events" to tell process "Dock" \
+#                    to click UI element "카카오톡" of list 1'
+#    창이 하나라도 열려 있으면 Dock 클릭이 무시되므로 **먼저 닫아야** 한다.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/klib.sh"
