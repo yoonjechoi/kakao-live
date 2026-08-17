@@ -65,11 +65,12 @@ klog() { python3 "$KLIB_DIR/klog.py" write "$@" 2>/dev/null || true; }
 
 # ── 보내기 전 방 검증 ────────────────────────────────────────────
 # kmsg / kakaocli 는 방을 **이름 부분일치**로 찾는다. 정확일치 옵션이 없다.
-# 그래서 검색어가 여러 방에 걸리면 엉뚱한 방으로 나간다 — 나간 건 되돌릴 수 없다.
+# 그래서 검색어가 여러 방에 걸리면 엉뚱한 방으로 나간다 — 되돌릴 수 없다.
 #
-# 실제로 걸릴 뻔했다(2026-08-16). 개인톡에 보내려던 검색어가 같은 낱말을 품은
-# 오픈채팅(2000명대)과 다른 그룹방 두 곳에도 걸렸고, 실측하니 개인톡이 아니라
-# 그룹방이 잡혔다. 그래서 **보내기 전에 DB 로 세어보고, 하나가 아니면 멈춘다.**
+# 실제로 걸릴 뻔했다(2026-08-16): 「우리팀」로 개인톡을 보내려 했는데 그 문자열이
+# 「우리팀 AI 정보 공유방」(오픈채팅 2593명)·「work」·
+# 「[우리팀] 글로벌 실패프젝방」에 모두 들어간다. 실측하니 개인톡이 아니라 그룹방이 잡혔다.
+# 철수쌤 지시: "래퍼에서는 부분일치로 찾지말고 정확하게 찾아야지."
 #
 # kroom_verify <검색어> <기대하는 chatId>
 #   0 = 안전 (그 검색어가 기대한 방 하나만 가리킨다)
@@ -81,7 +82,7 @@ kroom_verify() {
   # 방 이름은 **세 군데에 나뉘어 있다.** 한 군데만 보면 오탐이 난다:
   #   NTChatRoom.chatName   대부분 빈 문자열이다
   #   NTOpenLink.linkName   오픈채팅 이름
-  #   NTChatMeta(type=3)    일반 그룹방 이름  ← 여기만 있는 방이 흔하다
+  #   NTChatMeta(type=3)    일반 그룹방 이름  ← work방이 여기 있다
   out=$(run_timeout 30 kakaocli query "
     SELECT DISTINCT r.chatId
     FROM NTChatRoom r
@@ -114,4 +115,48 @@ kroom_verify() {
   fi
   klog room verify.ok "needle=$needle" "chat_id=$want"
   return 0
+}
+
+# ── 내가 보낸 첨부를 폴러가 알아보게 남긴다 ──────────────────────
+#
+# 첨부(영상·사진·파일)는 DB 에 본문이 "동영상"·"사진" 으로 저장된다.
+# 텍스트는 ksend 가 붙이는 🤖 로 걸러지지만 **첨부는 붙일 자리가 없다.**
+# 그래서 내가 올린 것이 그대로 "철수쌤: 동영상" 으로 되돌아와 두 번 헛짚었다(2026-08-17).
+#
+# 첨부를 보내는 도구는 성공 직후 **반드시** 이 함수를 부른다.
+# kvid 만 고치고 kimg 를 빼먹어서 사진이 또 샜다 — 그래서 공통 함수로 옮겼다.
+#
+#   record_sent_attachment <chatId> [보내기전_logId]
+#
+# DB 에 찍히는 것이 전송 판정보다 늦다(실측 1초). 한 번만 읽으면 빈손으로 돌아온다.
+# 실패하면 sentid.fail 을 남긴다 — **0 이어야 할 자리에 숫자가 찍히는 것이 경보다.**
+record_sent_attachment() {
+  local chatid="$1" before="${2:-}" newid="" t
+  local f="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../logs/kvid_sent.ids"
+  touch "$f"
+  # ★ "가장 최근 메시지" 를 읽으면 안 된다 — 전송이 15.8초 걸린 사이 내가 보낸 **다음 텍스트**가
+  #   먼저 DB 에 들어가, 그 텍스트의 logId 를 첨부인 줄 알고 기록했다(2026-08-17, 사진이 또 샜다).
+  #   전송 직전 id(before) 보다 뒤에 붙은 것 중 **첨부인 것**만 고른다.
+  for t in 1 2 3 4; do
+    newid=$(kakaocli query "SELECT logId FROM NTChatMessage WHERE chatId=$chatid
+              AND logId > ${before:-0}
+              AND message IN ('사진','동영상','파일','음성메시지')
+            ORDER BY logId ASC LIMIT 1" 2>/dev/null \
+      | python3 -c 'import sys,json
+try:
+    v=int(json.load(sys.stdin)[0][0])
+    print(v if 0 < v < 9000000000000000000 else "")
+except Exception:
+    print("")' 2>/dev/null)
+    [ -n "$newid" ] && [ "$newid" != "$before" ] && break
+    newid=""; sleep 1
+  done
+  if [ -n "$newid" ]; then
+    printf '%s\n' "$newid" >> "$f"
+    tail -n 200 "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+    printf '%s' "$newid"
+  else
+    klog kattach sentid.fail "chat_id=$chatid" "note=logId 를 못 읽어 메아리 필터에 못 넣었다"
+    return 1
+  fi
 }

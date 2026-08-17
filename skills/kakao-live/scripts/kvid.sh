@@ -2,8 +2,8 @@
 # 카톡 동영상·파일 전송 — 방은 rooms.json, 기록은 logs/.
 #
 #   kvid.sh 영상.mp4                    기본 방
-#   kvid.sh -r work 영상.mp4             별칭으로 방 지정
-#   kvid.sh -r work 영상.mp4 "설명 한 줄"  캡션을 먼저 보내고 영상을 올린다
+#   kvid.sh -r bang 영상.mp4             별칭으로 방 지정
+#   kvid.sh -r bang 영상.mp4 "설명 한 줄"  캡션을 먼저 보내고 영상을 올린다
 #
 # 왜 kmsg 를 못 쓰나 (2026-08-16 실측):
 #   kmsg 에는 send-image 뿐이고 동영상 서브커맨드가 없다. mp4 를 send-image 에 주면
@@ -24,10 +24,15 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/klib.sh"
 
+# 보낸 첨부의 logId 를 여기에 쌓는다 — 폴러가 자기 메아리를 알아보는 유일한 단서다.
+# set -u 아래에서는 어느 경로로 들어와도 정의돼 있어야 한다(--what 블록 안에 두었다가 터졌다).
+SENTIDS="$HERE/../logs/kvid_sent.ids"
+touch "$SENTIDS"
+
 # --what <이름> — 방에 보낸 짧은 이름이 어느 원본이었는지 조회한다.
 # 이름을 바꿔 보내는 이상 이 조회가 없으면 나도 원본을 못 짚는다.
 if [ "${1:-}" = "--what" ] || [ "${1:-}" = "--names" ]; then
-  NAMEMAP="$(python3 "$HERE/kkhome.py" sub kvid_names.tsv)"
+  NAMEMAP="$HERE/../logs/kvid_names.tsv"
   [ -f "$NAMEMAP" ] || { echo "아직 보낸 게 없다: $NAMEMAP" >&2; exit 1; }
   if [ "${1}" = "--names" ]; then
     column -t -s "$(printf '\t')" "$NAMEMAP"
@@ -57,7 +62,9 @@ CHAT=$(kroom   "$KROOM_ALIAS" search) || exit 1
 LABEL=$(kroom  "$KROOM_ALIAS" label)  || exit 1
 CHATID=$(kroom "$KROOM_ALIAS" chatId) || exit 1
 
-# 보내기 전에 **이 검색어가 정말 그 방 하나만 가리키는지** 확인한다. (klib.sh 의 kroom_verify)
+# 보내기 전에 **이 검색어가 정말 그 방 하나만 가리키는지** 확인한다.
+# 부분일치라 여러 방에 걸리면 엉뚱한 방으로 나가고, 나간 건 되돌릴 수 없다(2026-08-16 철수쌤 지시).
+# KROOM_SKIP_VERIFY=1 로 끌 수 있으나, 끄면 왜 껐는지 로그에 남는다.
 if [ "${KROOM_SKIP_VERIFY:-0}" = "1" ]; then
   klog room verify.skipped "room=$ALIAS" "needle=$CHAT"
 else
@@ -68,6 +75,7 @@ else
   fi
 fi
 
+
 VID="${1:?video path required}"
 CAPTION="${2:-}"
 [ -f "$VID" ] || { echo "그런 파일이 없다: $VID" >&2; klog kvid video.fail "room=$ALIAS" err=no_such_file "path=$VID"; exit 1; }
@@ -75,12 +83,12 @@ VID="$(cd "$(dirname "$VID")" && pwd)/$(basename "$VID")"   # 절대경로
 SIZE=$(stat -f %z "$VID" 2>/dev/null || echo 0)
 
 # ── 사람이 부를 수 있는 이름으로 바꿔서 보낸다 ────────────────────
-# 2026-08-16 그렇게 지적받았다: "sfx_One_s_20260816_183555_pitchslow.mp3" 같은 걸 보내놓고
+# 2026-08-16 철수쌤 지적: "sfx_One_s_20260816_183555_pitchslow.mp3" 같은 걸 보내놓고
 # 어느 거냐고 물으면 사람은 못 짚는다. **나는 다 기억하지만 사람은 아니다.**
 # 그래서 보낼 때만 짧은 이름(영단어+2자리 숫자)으로 복사해 올린다. 원본은 안 건드린다.
 #   -n 이름   직접 지정          예) -n slowA
 #   기본값     파일명에서 영단어 하나 + 01,02… 순번
-# 이름 규칙은 **케밥케이스**다 — 소문자 단어를 하이픈으로 잇는다 (2026-08-16 결정).
+# 이름 규칙은 **케밥케이스**다 — 소문자 단어를 하이픈으로 잇는다 (2026-08-16 철수쌤 지시).
 # camelCase 를 쓰지 마라. 사람이 소리내어 부를 때 대문자가 안 들린다 —
 # "slowA" 는 말로 하면 "슬로우에이"인지 "슬로우 A"인지 갈리지만 "slow-a" 는 안 갈린다.
 kebab() {
@@ -108,9 +116,9 @@ cp "$VID" "$SENDFILE"
 
 # 이름을 바꿨으면 **어디로 갔는지 반드시 남긴다.**
 # klog 는 이벤트 로그라 날짜별로 흩어지고 파묻힌다. 나중에 "slowA 로 가자" 소리를 들었을 때
-# 원본을 못 짚으면 이름 바꾼 게 오히려 독이 된다(2026-08-16 그렇게 지적받았다).
+# 원본을 못 짚으면 이름 바꾼 게 오히려 독이 된다(2026-08-16 철수쌤 지적).
 # 그래서 전용 대응표를 한 곳에 append 로 쌓는다. 조회는 `kvid.sh --what slowA`.
-NAMEMAP="$(python3 "$HERE/kkhome.py" sub kvid_names.tsv)"
+NAMEMAP="$HERE/../logs/kvid_names.tsv"
 mkdir -p "$(dirname "$NAMEMAP")"
 [ -f "$NAMEMAP" ] || printf 'sent_name\toriginal_path\troom\tsent_at\n' > "$NAMEMAP"
 # 같은 이름을 다른 파일에 또 쓰면 사람이 헷갈린다 — 그 순간 경고한다
@@ -230,8 +238,16 @@ for i in 1 2 3; do
   # video/file/image 만 인정하던 판정이 **성공을 실패로 읽고 3번 재전송해 방을 도배했다**
   # (2026-08-16). 첨부는 종류가 계속 늘어나므로 "text 가 아니면 붙은 것"으로 뒤집는다.
   if [ "$AFTER" != "$BEFORE" ] && [ "$TYPE" != "text" ]; then
+    # 보낸 첨부의 logId 를 남긴다 — 폴러가 자기 메아리를 알아보게 하려는 것.
+    # 텍스트는 🤖 접두사로 걸러지지만 첨부는 본문이 "동영상" 이라 걸리지 않는다.
+    # 그래서 내가 올린 영상이 6초 뒤 "철수쌤: 동영상" 으로 되돌아와 두 번 헛짚었다(2026-08-17).
+    # kakaocli 의 메시지 id 와 DB 의 logId 는 같은 값이다(확인함).
+    # logId 는 **DB 에서 직접** 읽는다. kakaocli messages 의 id 는 믿을 수 없다 —
+    # 2026-08-17 방금 올린 영상에 int64 최대값(9223372036854775807)을 돌려줘서
+    # 기록이 헛돌았고 메아리가 그대로 샜다. 판정은 통과했기에 조용히 틀렸다.
+    NEWID=$(record_sent_attachment "$CHATID" "${BEFORE%%|*}" || true)
     klog kvid video.ok "room=$ALIAS" "dur_ms=$DUR" "attempt=$i" "bytes=$SIZE" \
-         "file=$(basename "$VID")" "msg_type=$TYPE" "$RES"
+         "file=$(basename "$VID")" "msg_type=$TYPE" "sent_id=${NEWID:-?}" "$RES"
     echo "SENT [$ALIAS] ${DUR}ms type=$TYPE  이름=$(basename "$VID")"
     rm -rf "$SENDDIR"
     exit 0

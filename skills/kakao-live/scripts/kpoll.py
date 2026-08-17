@@ -2,14 +2,13 @@
 """여러 카톡 방을 한 프로세스로 동시에 폴링한다 (Monitor 이벤트 스트림용).
 
   tools/kpoll.sh                 # 기본 방 하나
-  tools/kpoll.sh notice work        # 두 방 동시
+  tools/kpoll.sh ham bang        # 두 방 동시
   tools/kpoll.sh all             # rooms.json 의 모든 방
   tools/kpoll.sh --interval 5 all
-  tools/kpoll.sh --replay 5 notice  # 시작할 때 최근 5개를 먼저 흘린다 (맥락 파악용)
+  tools/kpoll.sh --replay 5 ham  # 시작할 때 최근 5개를 먼저 흘린다 (맥락 파악용)
   tools/kpoll.sh --resume all    # 지난번 끊긴 지점부터 (그 사이 온 메시지를 복구한다)
 
-출력은 방이 섞이므로 항상 별칭을 붙인다:  [카톡/notice] 김감독: ...
-답장(인용)이면 무엇에 대한 답인지도 붙는다:  [카톡/notice] 김감독: 이거다  ↩︎(cut-03.mp4)
+출력은 방이 섞이므로 항상 별칭을 붙인다:  [카톡/ham] 김감독: ...
 
 --- 왜 시간 커서인가 (2026-08-15 실측) ---
 처음엔 "최신 30개를 떠서 logId > last 인 것만" 이었다. 세 가지 이유로 메시지를 놓친다.
@@ -26,13 +25,13 @@
 
 발신자 이름은 **displayName** 을 쓴다. `nickName` 은 일반 그룹방에서 상대의 카톡 본명(실명)이
 나온다 — 방에서 쓰는 대화명이 아니다. 실제로 실명으로 부르는 사고를 냈다(2026-08-15).
-  nickName='김철수'  displayName='철수쌤'  ← 방에 보이는 건 뒤쪽이다
+  nickName='이피디'  displayName='우리팀'  ← 방에 보이는 건 뒤쪽이다
 
 내 메시지를 거를 때 **authorId 로 거르면 안 된다** (2026-08-16 사고).
-내가 쓰는 계정은 계정 주인 계정이다. `authorId <> me` 로 막으면 내 메아리와 함께
-**계정 주인이 방에서 하신 말까지 통째로 안 보인다.** 실제로 35분간 못 봤다.
+내가 쓰는 계정은 철수쌤 계정이다. `authorId <> me` 로 막으면 내 메아리와 함께
+**철수쌤이 방에서 하신 말까지 통째로 안 보인다.** 실제로 35분간 못 봤다.
 거를 것은 계정이 아니라 **내가 붙인 🤖 표시**다. ksend.sh 가 항상 붙이므로 이걸로 충분하다.
-NTUser 는 한 userId 에 멀티프로필 행이 여러 개 있을 수 있어(계정 주인 계정은 7행) JOIN 하면
+NTUser 는 한 userId 에 멀티프로필 행이 여러 개 있을 수 있어(철수쌤 계정은 7행) JOIN 하면
 메시지가 중복된다. 그래서 조인이 아니라 LIMIT 1 서브쿼리로 뽑는다.
 
 방들은 `chatId IN (...)` 으로 한 번에 조회한다. kakaocli 는 호출당 ~790ms(프로세스 기동 +
@@ -51,8 +50,7 @@ LIMIT = int(os.environ.get("KPOLL_LIMIT", 500))  # 한 번에 읽는 최대 행.
 OVERLAP = 5.0      # 커서를 이만큼 뒤로 물려 겹치게 읽는다 (같은 초 안의 누락 방지)
 SEEN_MAX = 4000    # 방별로 기억하는 logId 개수 — 중복 제거용
 AUDIT_EVERY = 6    # 조용한 tick 이 이만큼 지날 때마다 '정말 없었나' 를 대조한다 (10초 간격이면 1분)
-import kkhome            # noqa: E402
-CURSOR = kkhome.sub("logs", ".kpoll-cursor.json")
+CURSOR = os.path.join(os.path.dirname(HERE), "logs", ".kpoll-cursor.json")
 
 SQL = """
 SELECT m.chatId, m.logId, m.sentAt,
@@ -67,8 +65,9 @@ FROM NTChatMessage m
 WHERE m.chatId IN ({chat_ids})
   AND m.sentAt >= {since}
   AND NOT (m.authorId = {me} AND m.message LIKE '🤖%')
+  AND m.logId NOT IN ({sent_ids})
   AND m.message IS NOT NULL AND m.message <> ''
-  AND m.message NOT LIKE '{{"feedType"%'
+  AND NOT (m.message LIKE '{{%' AND m.message LIKE '%"feedType"%')
 ORDER BY m.sentAt {order}, m.logId {order}
 LIMIT {limit}
 """
@@ -82,21 +81,22 @@ SQL_AUDIT = """
 SELECT COUNT(*),
        SUM(CASE WHEN m.authorId = {me} AND m.message LIKE '🤖%' THEN 1 ELSE 0 END),
        SUM(CASE WHEN m.message IS NULL OR m.message = '' THEN 1 ELSE 0 END),
-       SUM(CASE WHEN m.message LIKE '{{"feedType"%' THEN 1 ELSE 0 END)
+       SUM(CASE WHEN m.message LIKE '{{%' AND m.message LIKE '%"feedType"%' THEN 1 ELSE 0 END),
+       SUM(CASE WHEN m.logId IN ({sent_ids})
+                 AND NOT (m.authorId = {me} AND m.message LIKE '🤖%')
+                 AND m.message IS NOT NULL AND m.message <> ''
+                 AND NOT (m.message LIKE '{{%' AND m.message LIKE '%"feedType"%') THEN 1 ELSE 0 END)
 FROM NTChatMessage m
 WHERE m.chatId IN ({chat_ids})
   AND m.sentAt >= {since}
 """
 
 
+# 답장(인용)으로 온 메시지는 본문만 보면 무엇을 가리키는지 알 수 없다 — "이거다" 만 남는다.
+# 대상은 **attachment JSON** 에 들어 있다: src_logId / src_userId / src_message.
+# referer 컬럼은 0 이라 쓸모없다. 2026-08-16 철수쌤이 "DB 에 있을 거야, 찾아봐" 하셔서 찾았다.
+# 이걸 안 붙이면 사람에게 "어느 거요?" 를 매번 되물어야 한다 (실제로 그랬다).
 def reply_ctx(att):
-    """답장(인용)이 무엇을 가리키는지 한 조각으로 돌려준다. 아니면 빈 문자열.
-
-    답장으로 온 메시지는 본문만 보면 대상을 알 수 없다 — "이거다" 만 남는다.
-    대상은 **attachment JSON** 안에 있다: src_logId / src_userId / src_message.
-    `referer` 컬럼은 0 이라 쓸모없다. 이걸 안 붙이면 사람에게 "어느 거요?" 를
-    매번 되물어야 한다(실제로 그랬다).
-    """
     if not att:
         return ""
     try:
@@ -109,6 +109,25 @@ def reply_ctx(att):
     return "  ↩︎(%s)" % str(src).replace("\n", " ")[:60]
 
 
+# 내가 올린 첨부(영상·이미지·파일)는 본문이 "동영상"·"사진" 으로 저장된다.
+# 텍스트는 🤖 접두사로 걸러지지만 첨부는 붙일 자리가 없어 그대로 되돌아온다 —
+# 실제로 내가 올린 영상이 6초 뒤 "철수쌤: 동영상" 으로 두 번 잡혔다(2026-08-17).
+# kvid.sh 가 보낸 첨부의 logId 를 logs/kvid_sent.ids 에 적어두고, 그것만 건너뛴다.
+# 파일이 없거나 비어 있으면 아무것도 거르지 않는다(0 을 쓰면 IN () 문법 오류가 난다).
+SENT_IDS_PATH = os.path.join(HERE, "..", "logs", "kvid_sent.ids")
+
+
+def sent_ids():
+    try:
+        with open(SENT_IDS_PATH) as f:
+            # int64 최대값 같은 헛값이 섞이면 조용히 아무것도 안 거른다. 범위로 막는다.
+            ids = [ln.strip() for ln in f
+                   if ln.strip().isdigit() and 0 < int(ln.strip()) < 9_000_000_000_000_000_000]
+    except OSError:
+        return "0"
+    return ",".join(ids[-200:]) or "0"
+
+
 def audit(chat_ids, since, me, passed):
     """필터가 버린 것을 사유별로 센다. (설명되는 버림, 설명 안 되는 버림) 또는 None.
 
@@ -116,17 +135,57 @@ def audit(chat_ids, since, me, passed):
     total - passed 가 곧 버린 양이고, 그게 사유 합과 같아야 한다.
     남으면 **아무도 모르게 새고 있다는 뜻**이다."""
     sql = SQL_AUDIT.format(chat_ids=",".join(str(c) for c in chat_ids),
-                           since=repr(float(since)), me=me)
+                           since=repr(float(since)), me=me, sent_ids=sent_ids())
     try:
         out = subprocess.run(["kakaocli", "query", sql], capture_output=True, text=True, timeout=20)
         row = json.loads(out.stdout)[0]
-        total, echo, empty, feed = (int(v or 0) for v in row)
+        total, echo, empty, feed, mine_att = (int(v or 0) for v in row)
     except Exception as e:
         klog.write("kpoll", "audit.fail", err=str(e)[:200])
         return None
-    explained = echo + empty + feed
+    explained = echo + empty + feed + mine_att
     dropped = total - passed
     return explained, dropped - explained
+
+
+
+# ── 도배 감지 ────────────────────────────────────────────────
+# 2026-08-17 vibe 방에 낯선 사람이 들어와 **1분에 69건**을 쏟았다(실측).
+# 운영진이 70~100번씩 손으로 지웠다. 그 사이 아무 경보도 없었다.
+# 정상 사용자는 1분에 그만큼 못 친다 — 평소 최다 발화자도 하루 16건이었다.
+# 임계 20 은 철수쌤이 "그건 넘을 수 있다" 하셔서 **40** 으로 올렸다(2026-08-17).
+# 실제 도배는 1분에 69건이었으니 40 이면 여전히 잡힌다.
+FLOOD_WINDOW = 60
+FLOOD_LIMIT  = 40
+
+SQL_FLOOD = """
+SELECT m.authorId,
+       COALESCE((SELECT NULLIF(u.displayName,'') FROM NTUser u
+                 WHERE u.userId = m.authorId AND NULLIF(u.displayName,'') IS NOT NULL LIMIT 1), '?'),
+       COUNT(*) AS c
+FROM NTChatMessage m
+WHERE m.chatId = {chat_id} AND m.sentAt >= {since}
+GROUP BY m.authorId
+HAVING c >= {limit}
+ORDER BY c DESC
+"""
+
+
+def flood_check(chat_id, alias):
+    """한 사람이 짧은 시간에 쏟아내면 알린다. 조용히 지나가면 아무도 모른다."""
+    since = time.time() - FLOOD_WINDOW
+    sql = SQL_FLOOD.format(chat_id=chat_id, since=repr(float(since)), limit=FLOOD_LIMIT)
+    try:
+        out = subprocess.run(["kakaocli", "query", sql], capture_output=True, text=True, timeout=20)
+        rows = json.loads(out.stdout) if out.stdout.strip() else []
+    except Exception as e:
+        klog.write("kpoll", "flood.fail", room=alias, err=str(e)[:150])
+        return
+    for author, name, cnt in rows:
+        print("[도배/%s] %s 님이 %d초 안에 %d건 — 확인이 필요합니다"
+              % (alias, name, FLOOD_WINDOW, cnt), flush=True)
+        klog.write("kpoll", "flood.detected", room=alias, sender=name,
+                   author_id=author, count=cnt, window=FLOOD_WINDOW)
 
 
 def query(chat_ids, since, me, limit=LIMIT, newest_first=False):
@@ -134,6 +193,7 @@ def query(chat_ids, since, me, limit=LIMIT, newest_first=False):
     조용한 게 '메시지 없음' 인지 '폴러가 죽음' 인지는 로그로 구분한다."""
     sql = SQL.format(chat_ids=",".join(str(c) for c in chat_ids),
                      since=repr(float(since)), me=me, limit=limit,
+                     sent_ids=sent_ids(),
                      order="DESC" if newest_first else "ASC")
     t0 = time.time()
     try:
@@ -255,6 +315,12 @@ def main(argv):
                     fresh += 1
                 tick_new += fresh
                 last_rows = len(rows)
+
+                # 새 메시지가 몰린 tick 에서만 도배를 본다 — 조용하면 볼 일이 없다.
+                # 한 번에 여러 건이 들어오는 것이 도배의 첫 징후다.
+                if fresh >= 5:
+                    for a in aliases:
+                        flood_check(conf["rooms"][a]["chatId"], a)
 
                 # tick 을 매번 남기면 하루 수만 줄이 된다. 주기적으로만 남기되
                 # 새 메시지가 있거나 쿼리가 느려진 순간은 놓치지 않는다.
