@@ -97,8 +97,31 @@ kroom_verify() {
   ids=$(printf '%s' "$out" | grep -oE '[0-9]{6,}' | sort -u)
   n=$(printf '%s\n' "$ids" | grep -c . || true)
 
+  # 이름을 지어준 적 없는 **다인 그룹방** — 위 네 경로가 전부 빈손이 된다.
+  # 카톡이 화면에 보여주는 "홍길동, 김철수" 는 멤버 이름을 그 자리에서 이어 붙인 것이지
+  # 저장된 값이 아니다. 인원수와 무관하다 — 같은 3명 방이라도 이름을 지었으면 잡힌다.
+  # 1:1 은 directChatMemberUserId 로 걸리지만 3명부터는 그 경로도 없다.
+  # 그래서 **검색어를 쉼표로 쪼개, 그 이름들이 전부 발화한 방**을 교집합으로 찾는다.
+  # 이름 하나로는 여러 방에 걸리지만 겹치면 하나로 좁혀진다.
+  if [ "${n:-0}" -eq 0 ] && printf '%s' "$needle" | grep -q ','; then
+    local sql="" first=1 part
+    local IFS_SAVE="$IFS"; IFS=','
+    for part in $needle; do
+      part=$(printf '%s' "$part" | sed 's/^ *//;s/ *$//')
+      [ -z "$part" ] && continue
+      local q="SELECT DISTINCT mm.chatId FROM NTChatMessage mm JOIN NTUser uu ON uu.userId=mm.authorId WHERE uu.displayName LIKE '%${part}%'"
+      if [ $first -eq 1 ]; then sql="$q"; first=0; else sql="$sql INTERSECT $q"; fi
+    done
+    IFS="$IFS_SAVE"
+    out=$(run_timeout 30 kakaocli query "$sql" 2>/dev/null) || {
+      echo "검증 쿼리 실패 — 전송을 멈춘다" >&2; return 1; }
+    ids=$(printf '%s' "$out" | grep -oE '[0-9]{6,}' | sort -u)
+    n=$(printf '%s\n' "$ids" | grep -c . || true)
+    [ "${n:-0}" -ge 1 ] && klog room verify.by_members "needle=$needle" "hits=$n"
+  fi
+
   if [ "${n:-0}" -eq 0 ]; then
-    echo "⚠ '$needle' 로 찾히는 방이 없다 — DB 이름이 비었을 수 있다(1:1 방 등)" >&2
+    echo "⚠ '$needle' 로 찾히는 방이 없다 — 이름을 지어준 적 없는 방일 수 있다" >&2
     klog room verify.none "needle=$needle" "want=$want"
     return 1
   fi
