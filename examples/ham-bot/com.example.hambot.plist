@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  햄봇 LaunchAgent 견본. 경로 세 곳(/Users/Shared/HamBot)을 자기 설치 위치로 바꾼다.
+  ~/Library/LaunchAgents/ 에 넣고, **사람이 터미널에서** 등록한다(비밀번호 필요 없음):
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.example.hambot.plist
+  확인: launchctl print gui/$(id -u)/com.example.hambot
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.example.hambot</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/Shared/HamBot/kakao-live/examples/ham-bot/ham_bot.py</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>KAKAO_HOME</key><string>/Users/Shared/HamBot/home</string>
+    <key>PATH</key><string>/Users/Shared/HamBot/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>StandardOutPath</key><string>/Users/Shared/HamBot/home/ham.log</string>
+  <key>StandardErrorPath</key><string>/Users/Shared/HamBot/home/ham.log</string>
+</dict>
+</plist>

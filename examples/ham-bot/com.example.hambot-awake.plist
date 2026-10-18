@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  잠자기 막기. caffeinate 는 **이미 걸린 화면 잠금을 풀지는 못한다** — 잠금 화면 설정은 따로 끈다(README).
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.example.hambot-awake.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.example.hambot-awake</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/caffeinate</string>
+    <string>-d</string>
+    <string>-i</string>
+    <string>-s</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+</dict>
+</plist>
