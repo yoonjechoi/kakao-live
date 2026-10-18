@@ -18,6 +18,11 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/klib.sh"
 
+if ! python3 "$HERE/session_guard.py"; then
+  echo "BLOCKED: screen locked or GUI session unknown" >&2
+  exit 1
+fi
+
 kroom_parse "$@"
 set -- ${KROOM_ARGS+"${KROOM_ARGS[@]}"}
 
@@ -83,6 +88,15 @@ attempt_send() {   # attempt_send <시도번호>
   fi
   return 1
 }
+
+# Conservative mode for durable bots: never replay an attempted UI send.
+if [ "${KSEND_NO_RETRY:-0}" = "1" ]; then
+  if attempt_send 1; then echo "SENT [$ALIAS] ${LAST_DUR}ms"; exit 0; fi
+  klog ksend send.uncertain "room=$ALIAS" "attempt=1" "dur_ms=$LAST_DUR" "raw=$(printf '%s' "$LAST_OUT" | tr '\n' ' ' | cut -c1-2000)"
+  printf '%s\n' "$LAST_OUT" >&2
+  echo "UNCERTAIN [$ALIAS] — do not resend; reconcile against DB" >&2
+  exit 2
+fi
 
 # 1차: 창이 열려 있다고 보고 그냥 보낸다 (정상 상태에선 이 한 번으로 끝난다)
 if attempt_send 1; then echo "SENT [$ALIAS] ${LAST_DUR}ms"; exit 0; fi
