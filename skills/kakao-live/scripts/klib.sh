@@ -79,18 +79,21 @@ kroom_verify() {
   local needle="$1" want="$2"
   [ -z "$needle" ] && return 1
   local out
-  # 방 이름은 **세 군데에 나뉘어 있다.** 한 군데만 보면 오탐이 난다:
+  # 방 이름은 **네 군데에 나뉘어 있다.** 한 군데만 보면 오탐이 난다:
   #   NTChatRoom.chatName   대부분 빈 문자열이다
   #   NTOpenLink.linkName   오픈채팅 이름
   #   NTChatMeta(type=3)    일반 그룹방 이름  ← work방이 여기 있다
+  #   NTUser.displayName   1:1 상대 이름 (directChatMemberUserId)
   out=$(run_timeout 30 kakaocli query "
     SELECT DISTINCT r.chatId
     FROM NTChatRoom r
     LEFT JOIN NTOpenLink o ON o.linkId = r.linkId
     LEFT JOIN NTChatMeta m ON m.chatId = r.chatId AND m.type = 3
+    LEFT JOIN NTUser du ON du.userId = r.directChatMemberUserId
     WHERE (r.chatName LIKE '%${needle}%'
         OR o.linkName  LIKE '%${needle}%'
-        OR m.content   LIKE '%${needle}%')
+        OR m.content   LIKE '%${needle}%'
+        OR du.displayName LIKE '%${needle}%')
   " 2>/dev/null) || { echo "검증 쿼리 실패 — 전송을 멈춘다" >&2; return 1; }
 
   local ids n
