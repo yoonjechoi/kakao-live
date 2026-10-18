@@ -17,13 +17,18 @@ import sys
 UNLOCKED, LOCKED, UNKNOWN = 0, 1, 2
 
 
-def console_users(raw):
+def registry_root(raw):
     data = plistlib.loads(raw)
     if isinstance(data, list):
         data = data[0] if data else {}
     if not isinstance(data, dict):
         raise ValueError("unexpected ioreg shape")
-    return data.get("IOConsoleUsers") or []
+    return data
+
+
+def console_users(raw):
+    return registry_root(raw).get("IOConsoleUsers") or []
+
 
 
 def state(raw=None, uid=None):
@@ -35,6 +40,8 @@ def state(raw=None, uid=None):
                 ["/usr/sbin/ioreg", "-n", "Root", "-d1", "-a"],
                 capture_output=True, timeout=10, check=True,
             ).stdout
+        if registry_root(raw).get("IOConsoleLocked"):
+            return LOCKED, "console locked"
         users = console_users(raw)
     except Exception as e:  # noqa: BLE001 — 무엇이든 모르면 UNKNOWN
         return UNKNOWN, "ioreg: " + type(e).__name__
