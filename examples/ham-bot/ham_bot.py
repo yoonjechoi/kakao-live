@@ -57,6 +57,7 @@ def connect():
     db = sqlite3.connect(str(HOME / "ham.sqlite"))
     db.execute("PRAGMA synchronous=FULL")
     db.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value REAL)")
+    db.execute("CREATE TABLE IF NOT EXISTS seen (id TEXT PRIMARY KEY, sent REAL)")
     db.execute("CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, sent REAL, state TEXT, answer TEXT)")
     # 보내는 중에 죽었으면 나갔는지 모른다. pending 으로 되돌리지 않는다.
     db.execute("UPDATE events SET state='uncertain' WHERE state='sending'")
@@ -104,14 +105,17 @@ def collect(db, cid):
         print("ready", flush=True)
         return
     cursor = float(row[0])
+    seen_ids = ",".join(str(int(r[0])) for r in db.execute("SELECT id FROM seen WHERE sent >= ?", (int(cursor)-5,))) or "0"
     rows = query(
         "SELECT logId, sentAt, message FROM NTChatMessage WHERE chatId = %d AND sentAt >= %d "
-        "ORDER BY sentAt, logId LIMIT 500" % (cid, int(cursor) - 5)
+        "AND logId NOT IN (%s) ORDER BY sentAt, logId LIMIT 500" % (cid, int(cursor) - 5, seen_ids)
     )
     for lid, sent, text in rows:
         cursor = max(cursor, float(sent))
+        db.execute("INSERT OR IGNORE INTO seen VALUES (?, ?)", (str(lid), float(sent)))
         if norm(text) == TRIGGER:
             db.execute("INSERT OR IGNORE INTO events VALUES (?, ?, 'pending', ?)", (str(lid), float(sent), REPLY))
+    db.execute("DELETE FROM seen WHERE sent < ?", (int(cursor)-5,))
     db.execute("UPDATE meta SET value=? WHERE key='cursor'", (cursor,))
     db.commit()
 
@@ -156,7 +160,7 @@ def deliver(db, cid):
                 state = "pending"  # 아무것도 안 갔다 — 다음 바퀴에 다시
             else:
                 n = confirmed(cid, answer, started)
-                state = "replied" if n else "uncertain"
+                state = "replied" if n == 1 else "uncertain"
                 if n > 1:
                     print(json.dumps({"event": "duplicate_seen", "count": n}), flush=True)
         except Exception:  # noqa: BLE001 — 시간 초과 포함, 모르면 uncertain
@@ -177,7 +181,7 @@ def tick(db):
 def main():
     os.umask(0o077)
     HOME.mkdir(parents=True, exist_ok=True)
-    lock = open(HOME / "ham.lock", "a")
+    lock = open(HOME / "runtime.lock", "a")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)  # 둘이 뜨면 같은 답을 두 번 보낸다
     except BlockingIOError:

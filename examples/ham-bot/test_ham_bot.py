@@ -93,6 +93,24 @@ class Ham(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 self.ham.discover()
 
+    def test_duplicate_confirmation_stays_uncertain(self):
+        self.event()
+        self.deliver(0, [[8,"🤖 "+self.ham.REPLY],[9,"🤖 "+self.ham.REPLY]])
+        self.assertEqual(self.state(),"uncertain")
+        self.assertEqual(self.deliver(0,[]),0)
+
+    def test_full_page_excludes_seen_rows_on_next_poll(self):
+        now=int(time.time())
+        self.db.execute("INSERT INTO meta VALUES ('cursor', ?)",(now,))
+        page=[[i,now,"잡담"] for i in range(1,501)]
+        with patch.object(self.ham,"query",return_value=page):
+            self.ham.collect(self.db,7)
+        with patch.object(self.ham,"query",return_value=[[501,now,"햄봇 안녕"]]) as query:
+            self.ham.collect(self.db,7)
+        self.assertIn("logId NOT IN (",query.call_args.args[0])
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM seen").fetchone()[0],501)
+        self.assertEqual(self.db.execute("SELECT id FROM events").fetchone()[0],"501")
+
     def test_register_keeps_existing_rooms(self):
         path = Path(self.tmp.name) / "rooms.json"
         path.write_text(json.dumps({"me": 42, "default": "work", "rooms": {"work": {"chatId": 1}}}))
