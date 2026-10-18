@@ -41,6 +41,9 @@ def direct_bot(config, home):
         return cid
 
     bot.discover = discover
+    if config.get('questions'):
+        from ham_bot_answers import enable
+        enable(bot)
     return bot
 
 
