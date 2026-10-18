@@ -111,6 +111,11 @@ class Ham(unittest.TestCase):
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM seen").fetchone()[0],501)
         self.assertEqual(self.db.execute("SELECT id FROM events").fetchone()[0],"501")
 
+    def test_refuses_to_start_without_ksend(self):
+        self.ham.SCRIPTS = Path(self.tmp.name) / "nowhere"
+        with self.assertRaises(SystemExit):
+            self.ham.main()
+
     def test_register_keeps_existing_rooms(self):
         path = Path(self.tmp.name) / "rooms.json"
         path.write_text(json.dumps({"me": 42, "default": "work", "rooms": {"work": {"chatId": 1}}}))

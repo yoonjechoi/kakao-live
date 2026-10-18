@@ -179,6 +179,10 @@ def tick(db):
 
 
 def main():
+    # 파일을 옮겨 두면 SCRIPTS 가 엉뚱한 곳을 가리킨다. 그대로 돌면 보낼 때마다 ksend 를 못 찾아
+    # 전부 uncertain 이 된다(중복은 없지만 답도 없다). 뜨기 전에 멈춘다.
+    if not (SCRIPTS / "ksend.sh").is_file():
+        sys.exit("ksend.sh not found under %s — set KAKAO_LIVE_SCRIPTS" % SCRIPTS)
     os.umask(0o077)
     HOME.mkdir(parents=True, exist_ok=True)
     lock = open(HOME / "runtime.lock", "a")
