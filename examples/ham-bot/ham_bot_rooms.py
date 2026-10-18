@@ -32,7 +32,7 @@ def direct_bot(config, home):
     def discover():
         # Exact identity and membership check, repeated immediately before every send.
         escaped = name.replace("'", "''")
-        rows = bot.query("SELECT r.chatId,r.activeMembersCount FROM NTChatRoom r "
+        rows = bot.query("SELECT DISTINCT r.chatId,r.activeMembersCount FROM NTChatRoom r "
                          "JOIN NTUser u ON u.userId=r.directChatMemberUserId "
                          "WHERE u.displayName='%s'" % escaped)
         if len(rows) != 1 or int(rows[0][0]) != cid or int(rows[0][1]) != 2:
@@ -41,6 +41,9 @@ def direct_bot(config, home):
         return cid
 
     bot.discover = discover
+    if config.get('questions'):
+        from ham_bot_answers import enable
+        enable(bot)
     return bot
 
 
