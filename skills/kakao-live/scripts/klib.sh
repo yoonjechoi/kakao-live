@@ -88,9 +88,11 @@ kroom_verify() {
     FROM NTChatRoom r
     LEFT JOIN NTOpenLink o ON o.linkId = r.linkId
     LEFT JOIN NTChatMeta m ON m.chatId = r.chatId AND m.type = 3
+    LEFT JOIN NTUser du ON du.userId = r.directChatMemberUserId
     WHERE (r.chatName LIKE '%${needle}%'
         OR o.linkName  LIKE '%${needle}%'
-        OR m.content   LIKE '%${needle}%')
+        OR m.content   LIKE '%${needle}%'
+        OR du.displayName LIKE '%${needle}%')
   " 2>/dev/null) || { echo "검증 쿼리 실패 — 전송을 멈춘다" >&2; return 1; }
 
   local ids n
