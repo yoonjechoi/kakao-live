@@ -79,10 +79,11 @@ kroom_verify() {
   local needle="$1" want="$2"
   [ -z "$needle" ] && return 1
   local out
-  # 방 이름은 **세 군데에 나뉘어 있다.** 한 군데만 보면 오탐이 난다:
+  # 방 이름은 **네 군데에 나뉘어 있다.** 한 군데만 보면 오탐이 난다:
   #   NTChatRoom.chatName   대부분 빈 문자열이다
   #   NTOpenLink.linkName   오픈채팅 이름
   #   NTChatMeta(type=3)    일반 그룹방 이름  ← work방이 여기 있다
+  #   NTUser.displayName   1:1 상대 이름 (directChatMemberUserId)
   out=$(run_timeout 30 kakaocli query "
     SELECT DISTINCT r.chatId
     FROM NTChatRoom r
