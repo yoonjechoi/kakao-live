@@ -84,3 +84,8 @@ python3 -m unittest discover -s examples/ham-bot -v     # 카톡 없이 돈다
 - 확인 본문이 여러 건이면 성공으로 닫지 않고 uncertain 및 duplicate_seen으로 남긴다. 자동 재전송은 하지 않는다.
 - 읽은 행의 ID를 짧은 겹침 구간 동안 보존해, 같은 초의 500행 페이지가 반복되어 다음 인사를 못 읽는 문제를 막는다.
 - 이 PR 파일 자체의 실기 전환은 아직 하지 않았다. 현재 가동 중인 배포판은 유지한다.
+
+
+### 명시적으로 허용한 1:1 방 추가
+
+`ham_bot_rooms.py`는 기존 테스트방과 설정한 1:1 방을 한 프로세스에서 순서대로 처리합니다. `HAM_BOT_DIRECT_ROOMS`에 `[{"alias":"friend","name":"상대 표시 이름","chatId":123456789}]` 형태의 JSON을 지정합니다. 실제 방 ID는 로컬에만 보관하세요. 이름과 방 ID가 정확히 일치하고 멤버가 2명일 때만 처리하며, ksend의 kroom_verify도 유지합니다. 각 추가 방은 KAKAO_HOME/direct-rooms/별칭 아래 별도 커서와 상태를 보관하므로 기존 테스트방 이벤트가 다른 방으로 전달되지 않습니다. 최초 시작 이전 인사는 가져오지 않습니다. 기존 단일 방 런타임을 중지한 뒤 같은 KAKAO_HOME/runtime.lock을 쓰는 이 실행 파일로 전환하세요.
