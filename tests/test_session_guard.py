@@ -36,6 +36,11 @@ class Guard(unittest.TestCase):
     def test_locked(self):
         self.assertEqual(self.code(as_dict(user(CGSSessionScreenIsLocked=True))), g.LOCKED)
 
+    def test_root_lock_overrides_unlocked_user(self):
+        root={"IOConsoleLocked":True,"IOConsoleUsers":[user()]}
+        for data in [root,[root]]:
+            self.assertEqual(self.code(plistlib.dumps(data)),g.LOCKED)
+
     def test_switched_away_is_locked(self):
         self.assertEqual(self.code(as_dict(user(kCGSSessionOnConsoleKey=False))), g.LOCKED)
 
