@@ -241,6 +241,25 @@ ioreg -n Root -d1 -a | grep -A1 CGSSessionScreenIsLocked   # true = locked
 
 **Reading works while locked.** Polling hits the local DB and doesn't care; only writing breaks.
 
+So `ksend.sh` checks the lock with `session_guard.py` before sending. If locked it never calls kmsg,
+logs `send.blocked reason=session`, and exits 1. The top level of `ioreg -a` is **sometimes an array and
+sometimes a dict** (it varies by machine — measured on a Mac mini, 2026-10-18), so both are handled.
+
+### If you don't know whether it went out, don't send it again — `KSEND_NO_RETRY=1`
+By default `ksend.sh` fixes the tab and tries three more times after a failure. That is right for most
+failures, which stop before anything is typed (Friends tab, search miss). But **a timeout or
+`INPUT_NOT_REFLECTED` may already have gone out.** Sending again posts the same line twice.
+
+An auto-reply bot that must never answer twice calls it with `KSEND_NO_RETRY=1`.
+
+| Exit | Default | `KSEND_NO_RETRY=1` |
+|---|---|---|
+| 0 | sent | sent |
+| 1 | failed (including after 4 tries) | **stopped before sending** — room check or screen lock. Nothing went out; safe to try again |
+| 2 | — | **unknown** — do not resend; look up the 🤖 text in the DB |
+
+With `KSEND_NO_RETRY=1` it also stops when the lock state **cannot be read** (the default sends anyway).
+
 ### Room search is a substring match — count the hits before sending
 Both `kmsg` and `kakaocli` locate a room by **substring match** on its name. There is no
 exact-match option. If your `search` fragment matches two rooms, **the message goes to the

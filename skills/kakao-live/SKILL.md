@@ -52,6 +52,7 @@ scripts/kpoll.sh --resume all         # 끊긴 지점부터 (그 사이 메시�
 
 scripts/ksend.sh "메시지"              # 기본 방
 scripts/ksend.sh -r work "메시지"      # 방 지정
+KSEND_NO_RETRY=1 scripts/ksend.sh "…"  # 자동응답 — 실패해도 다시 안 보낸다. exit 2 = 모름 → DB 로 대조
 scripts/ksay.sh -r work "첫 줄
 둘째 줄"                              # 문단 — 개행이 살아 있는 한 메시지
 scripts/kimg.sh -r work 사진.jpg
@@ -178,7 +179,7 @@ AppleScript 의 `set the clipboard to POSIX file` 은 카톡이 안 받고, `set
 scripts/klog.sh stat
 ```
 
-`send.ok/retry/fail`(소요·시도횟수), `ae.focus`(카톡 창 개수·AX 버튼 수·순수 Apple Event 왕복),
+`send.ok/retry/fail/uncertain/blocked`(소요·시도횟수·멈춘 이유), `ae.focus`(카톡 창 개수·AX 버튼 수·순수 Apple Event 왕복),
 `--trace-ax` 에서 뽑은 캐시 히트 여부, 폴링 `tick`·`drain`·`query.fail` 이 한 타임라인에 쌓인다.
 1회 성공률이 낮으면 창 유지가 안 듣는 것이고, `drain.abort` 가 반복되면 `KPOLL_LIMIT` 을 올린다.
 

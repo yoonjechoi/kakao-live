@@ -6,6 +6,11 @@
 #   KROOM=work ksend.sh "메시지"       환경변수로도 됨
 #   echo "메시지" | ksend.sh -r notice -   stdin
 #   KSEND_TRACE=0 ksend.sh "..."      kmsg 의 AX 추적 끄기(기본 켬)
+#   KSEND_NO_RETRY=1 ksend.sh "..."   실패해도 다시 보내지 않는다(같은 말 두 번 금지)
+#
+# 끝 코드: 0 = 보냄 / 1 = 실패 / 2 = 결과를 모름(KSEND_NO_RETRY=1 일 때만)
+#   KSEND_NO_RETRY=1 이면 1 은 **보내기 전에 멈춘 것만**이다(방 검증·화면 잠금) — 아무것도 안 갔다.
+#   기본 모드의 1 은 4번 시도 뒤 실패도 포함한다.
 #
 # 실측으로 확인한 것 (2026-08-15):
 #  1) kmsg 는 기본으로 전송 후 채팅창을 닫는다 → 다음 전송이 매번 검색부터 다시 한다.
@@ -54,6 +59,17 @@ fi
 
 TRACE=""; [ "${KSEND_TRACE:-1}" = "1" ] && TRACE="--trace-ax"
 
+# 화면이 잠겼으면 kmsg 는 창을 못 만진다 — 입력하기 전에 멈춘다(exit 1 = 아무것도 안 갔다).
+# 잠금 여부를 **모를 때**는 기본은 그냥 보내고(예전 동작), KSEND_NO_RETRY=1 이면 멈춘다.
+SG_WHY=$(python3 "$HERE/session_guard.py" 2>&1); SG=$?
+if [ "$SG" -eq 1 ] || { [ "$SG" -ne 0 ] && [ "${KSEND_NO_RETRY:-0}" = "1" ]; }; then
+  echo "전송을 멈췄다 — 화면 잠금/세션 확인 실패: $SG_WHY (방: $ALIAS)" >&2
+  klog ksend send.blocked "room=$ALIAS" reason=session "guard=$SG" "why=$SG_WHY"
+  exit 1
+elif [ "$SG" -ne 0 ]; then
+  klog ksend session.unknown "room=$ALIAS" "why=$SG_WHY"
+fi
+
 # 어느 방으로 나가는지 항상 남긴다 — 사람 많은 방에 오발송하면 되돌릴 수 없다
 echo "→ [$ALIAS] $LABEL" >&2
 klog ksend send.start "room=$ALIAS" "len=${#MSG}" "text=$MSG"
@@ -86,6 +102,17 @@ attempt_send() {   # attempt_send <시도번호>
 
 # 1차: 창이 열려 있다고 보고 그냥 보낸다 (정상 상태에선 이 한 번으로 끝난다)
 if attempt_send 1; then echo "SENT [$ALIAS] ${LAST_DUR}ms"; exit 0; fi
+
+# KSEND_NO_RETRY=1 — 실패해도 다시 보내지 않는다. 시간 초과·입력 미반영은 **이미 나갔을 수 있다.**
+# 다시 보내면 같은 말이 두 번 간다. exit 2 = 결과를 모른다 → 호출부가 DB 로 대조해야 한다.
+# 자동응답 봇처럼 같은 답이 두 번 가면 안 되는 곳에서 켠다(examples/ham-bot).
+if [ "${KSEND_NO_RETRY:-0}" = "1" ]; then
+  klog ksend send.uncertain "room=$ALIAS" "attempt=1" "dur_ms=$LAST_DUR" "len=${#MSG}" \
+       $(ax_fields "$LAST_OUT") "raw=$(printf '%s' "$LAST_OUT" | tr '\n' ' ' | cut -c1-2000)"
+  echo "UNCERTAIN [$ALIAS] — 다시 보내지 마라, DB 로 대조해라: $LAST_OUT" >&2
+  exit 2
+fi
+
 klog ksend send.retry "room=$ALIAS" "attempt=1" "dur_ms=$LAST_DUR" \
      $(ax_fields "$LAST_OUT") "raw=$(printf '%s' "$LAST_OUT" | tr '\n' ' ' | cut -c1-800)"
 
